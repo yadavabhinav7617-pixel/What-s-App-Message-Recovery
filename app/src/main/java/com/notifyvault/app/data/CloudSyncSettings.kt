@@ -60,7 +60,7 @@ object CloudSyncSettings {
     }
 
     fun getBackendUrl(context: Context): String {
-        val defaultBase = "http://10.0.2.2:4000"
+        val defaultBase = "https://notifyvault-theta.vercel.app"
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_BACKEND_URL, defaultBase)
             ?.takeIf { it.isNotBlank() }

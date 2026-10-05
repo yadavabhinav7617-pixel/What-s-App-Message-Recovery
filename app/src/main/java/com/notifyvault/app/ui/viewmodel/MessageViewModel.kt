@@ -24,7 +24,9 @@ data class HomeUiState(
     val lastSyncTimestamp: Long = 0L,
     val pendingSyncCount: Int = 0,
     val failedSyncCount: Int = 0,
-    val registeredDeviceName: String = "This device"
+    val registeredDeviceName: String = "This device",
+    val backendUrl: String = "",
+    val accountEmail: String = ""
 )
 
 class MessageViewModel(application: Application) : AndroidViewModel(application) {
@@ -84,7 +86,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                         pendingSyncCount = pending,
                         failedSyncCount = failed,
                         lastSyncTimestamp = CloudSyncSettings.getLastSyncTime(context),
-                        registeredDeviceName = CloudSyncSettings.getDeviceName(context)
+                        registeredDeviceName = CloudSyncSettings.getDeviceName(context),
+                        backendUrl = CloudSyncSettings.getBackendUrl(context),
+                        accountEmail = CloudSyncSettings.getAccountEmail(context) ?: ""
                     )
                 }
             } catch (_: Exception) {
@@ -95,6 +99,18 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun setCloudSyncEnabled(enabled: Boolean) {
         val context = getApplication<Application>().applicationContext
         CloudSyncSettings.setEnabled(context, enabled)
+        refreshCloudStatus()
+    }
+
+    fun updateBackendUrl(url: String) {
+        val context = getApplication<Application>().applicationContext
+        CloudSyncSettings.setBackendUrl(context, url)
+        refreshCloudStatus()
+    }
+
+    fun updateAccountEmail(email: String) {
+        val context = getApplication<Application>().applicationContext
+        CloudSyncSettings.setAccountEmail(context, email)
         refreshCloudStatus()
     }
 

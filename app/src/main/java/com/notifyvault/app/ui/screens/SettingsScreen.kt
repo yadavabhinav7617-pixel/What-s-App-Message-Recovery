@@ -28,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -65,6 +66,9 @@ fun SettingsScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showAgeDeleteConfirm by remember { mutableStateOf<Int?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showAdminConfig by remember { mutableStateOf(false) }
+    var backendUrlInput by remember(uiState.backendUrl) { mutableStateOf(uiState.backendUrl) }
+    var accountEmailInput by remember(uiState.accountEmail) { mutableStateOf(uiState.accountEmail) }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
             context.contentResolver.openOutputStream(uri)?.use { output ->
@@ -192,6 +196,42 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Sync Now")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { showAdminConfig = !showAdminConfig },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (showAdminConfig) "Hide Admin Server Config" else "Admin Server Config")
+                }
+
+                if (showAdminConfig) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = backendUrlInput,
+                        onValueChange = { backendUrlInput = it },
+                        label = { Text("Server Base URL") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = accountEmailInput,
+                        onValueChange = { accountEmailInput = it },
+                        label = { Text("Account Email") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            viewModel.updateBackendUrl(backendUrlInput)
+                            viewModel.updateAccountEmail(accountEmailInput)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save Server Config")
+                    }
                 }
             }
         }

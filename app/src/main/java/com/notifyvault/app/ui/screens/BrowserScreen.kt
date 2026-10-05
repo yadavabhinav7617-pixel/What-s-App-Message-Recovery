@@ -2,9 +2,11 @@ package com.notifyvault.app.ui.screens
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.text.format.DateFormat
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -441,7 +443,16 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                         settings.useWideViewPort = true
                         settings.loadWithOverviewMode = true
                         settings.setSupportMultipleWindows(false)
+                        settings.javaScriptCanOpenWindowsAutomatically = true
+                        settings.allowFileAccess = true
+                        settings.allowContentAccess = true
+                        settings.setSupportZoom(true)
+                        settings.builtInZoomControls = true
+                        settings.displayZoomControls = false
                         settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+
+                        CookieManager.getInstance().setAcceptCookie(true)
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
                         addJavascriptInterface(NotifyVaultWebBridge(ctx, repository), "NotifyVaultBridge")
 
@@ -449,10 +460,14 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                 val targetUrl = request?.url?.toString() ?: return false
                                 if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
-                                    view?.loadUrl(targetUrl)
-                                    return true
+                                    return false // Allow WebView to handle HTTP/HTTPS navigation naturally
                                 }
-                                return false
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl))
+                                    ctx.startActivity(intent)
+                                } catch (_: Exception) {
+                                }
+                                return true
                             }
 
                             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {

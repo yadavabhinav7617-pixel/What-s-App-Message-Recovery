@@ -3,15 +3,18 @@ package com.notifyvault.app.ui.screens
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
 import android.text.format.DateFormat
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,10 +27,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -45,7 +46,6 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,27 +88,24 @@ import java.util.Date
 
 data class WebTab(
     val id: String = java.util.UUID.randomUUID().toString(),
-    var url: String = "",
-    var title: String = "Start Page",
+    var url: String = "https://www.google.com",
+    var title: String = "Google",
     var webView: WebView? = null
 )
 
 data class QuickShortcut(
     val name: String,
     val url: String,
-    val iconBg: Color,
-    val label: String
+    val iconBg: Color
 )
 
-private val QUICK_SHORTCUTS = listOf(
-    QuickShortcut("WhatsApp", "https://web.whatsapp.com", Color(0xFF25D366), "WA"),
-    QuickShortcut("Instagram", "https://www.instagram.com", Color(0xFFE1306C), "IG"),
-    QuickShortcut("Snapchat", "https://web.snapchat.com", Color(0xFFFFFC00), "SC"),
-    QuickShortcut("YouTube", "https://m.youtube.com", Color(0xFFFF0000), "YT"),
-    QuickShortcut("Facebook", "https://m.facebook.com", Color(0xFF1877F2), "FB"),
-    QuickShortcut("Google", "https://www.google.com", Color(0xFF4285F4), "G"),
-    QuickShortcut("Wikipedia", "https://www.wikipedia.org", Color(0xFF6366F1), "W"),
-    QuickShortcut("News", "https://news.google.com", Color(0xFF10B981), "N")
+private val SHORTCUT_CHIPS = listOf(
+    QuickShortcut("Google", "https://www.google.com", Color(0xFF4285F4)),
+    QuickShortcut("WhatsApp", "https://web.whatsapp.com", Color(0xFF25D366)),
+    QuickShortcut("Instagram", "https://www.instagram.com", Color(0xFFE1306C)),
+    QuickShortcut("Snapchat", "https://web.snapchat.com", Color(0xFFFFFC00)),
+    QuickShortcut("YouTube", "https://m.youtube.com", Color(0xFFFF0000)),
+    QuickShortcut("Facebook", "https://m.facebook.com", Color(0xFF1877F2))
 )
 
 class NotifyVaultWebBridge(
@@ -172,7 +169,9 @@ fun BrowserScreen(viewModel: MessageViewModel) {
         if (formatted.isNotBlank()) {
             urlInput = formatted
             currentTab.url = formatted
-            currentTab.webView?.loadUrl(formatted)
+            if (currentTab.webView != null) {
+                currentTab.webView?.loadUrl(formatted)
+            }
         }
     }
 
@@ -190,14 +189,14 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                 )
             )
     ) {
-        // Professional Top Bar with Inset Padding
+        // Professional Chrome-Style Top Toolbar
         Surface(
             tonalElevation = 6.dp,
             shadowElevation = 4.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                // Address Bar Row (Spans Full Available Width)
+                // Address Bar Row
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -251,7 +250,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                             ) { innerTextField ->
                                 if (urlInput.isEmpty()) {
                                     Text(
-                                        "Search or type URL",
+                                        "Search Google or type URL",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                         maxLines = 1
@@ -310,25 +309,59 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                     }
                 }
 
-                // Sub-Toolbar: Navigation Controls
+                // Quick Shortcut Chips Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SHORTCUT_CHIPS.forEach { shortcut ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = shortcut.iconBg.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, shortcut.iconBg.copy(alpha = 0.35f)),
+                            modifier = Modifier.clickable { performSearch(shortcut.url) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(shortcut.iconBg)
+                                )
+                                Text(
+                                    text = shortcut.name,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Navigation Controls Bar
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp, start = 4.dp, end = 4.dp)
+                        .padding(top = 6.dp, start = 4.dp, end = 4.dp)
                 ) {
                     IconButton(
                         onClick = {
-                            if (currentTab.url.isBlank()) {
-                                // Already on start page
-                            } else if (currentTab.webView?.canGoBack() == true) {
+                            if (currentTab.webView?.canGoBack() == true) {
                                 currentTab.webView?.goBack()
-                            } else {
-                                currentTab.url = ""
-                                urlInput = ""
                             }
                         },
+                        enabled = currentTab.webView?.canGoBack() == true,
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
@@ -351,15 +384,12 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                     }
 
                     IconButton(
-                        onClick = {
-                            currentTab.url = ""
-                            urlInput = ""
-                        },
+                        onClick = { performSearch("https://www.google.com") },
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             Icons.Default.Home,
-                            contentDescription = "Start Page",
+                            contentDescription = "Google Home",
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -399,265 +429,129 @@ fun BrowserScreen(viewModel: MessageViewModel) {
             }
         }
 
-        // Web Content / Start Page View
+        // Active Real WebView Container
         Box(modifier = Modifier.weight(1f)) {
-            if (currentTab.url.isBlank()) {
-                // Modern Chrome/Edge-style Start Page
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "NotifyVault Web",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Fast, Secure & Private In-App Browsing",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            AndroidView(
+                factory = { ctx ->
+                    val webView = WebView(ctx).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.databaseEnabled = true
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        settings.useWideViewPort = true
+                        settings.loadWithOverviewMode = true
+                        settings.setSupportMultipleWindows(false)
+                        settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                        addJavascriptInterface(NotifyVaultWebBridge(ctx, repository), "NotifyVaultBridge")
 
-                    Text(
-                        text = "Quick Access Shortcuts",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp)
-                    )
-
-                    // 4x2 Shortcuts Grid
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(QUICK_SHORTCUTS) { shortcut ->
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable {
-                                    performSearch(shortcut.url)
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val targetUrl = request?.url?.toString() ?: return false
+                                if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+                                    view?.loadUrl(targetUrl)
+                                    return true
                                 }
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(54.dp)
-                                        .clip(CircleShape)
-                                        .background(shortcut.iconBg.copy(alpha = 0.2f))
-                                        .border(1.dp, shortcut.iconBg.copy(alpha = 0.5f), CircleShape)
-                                ) {
-                                    Text(
-                                        text = shortcut.label,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = shortcut.iconBg
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = shortcut.name,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                return false
                             }
-                        }
-                    }
 
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // Recently Visited Pages Section
-                    Text(
-                        text = "Recently Visited on This Device",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp)
-                    )
-
-                    if (historyList.isEmpty()) {
-                        Text(
-                            text = "No recent browsing history recorded yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            items(historyList.take(6)) { item ->
-                                Card(
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            performSearch(item.url)
-                                        }
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = item.title.ifBlank { "Web Page" },
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = item.url,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        Text(
-                                            text = DateFormat.format("h:mm a", Date(item.timestamp)).toString(),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                super.onPageStarted(view, url, favicon)
+                                isLoading = true
+                                url?.let {
+                                    urlInput = it
+                                    currentTab.url = it
                                 }
                             }
-                        }
-                    }
-                }
-            } else {
-                // Render Active Web Page inside WebView
-                AndroidView(
-                    factory = { ctx ->
-                        val webView = WebView(ctx).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.databaseEnabled = true
-                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                            settings.useWideViewPort = true
-                            settings.loadWithOverviewMode = true
-                            settings.setSupportMultipleWindows(false)
-                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
-                            addJavascriptInterface(NotifyVaultWebBridge(ctx, repository), "NotifyVaultBridge")
-
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                    super.onPageStarted(view, url, favicon)
-                                    isLoading = true
-                                    url?.let {
-                                        urlInput = it
-                                        currentTab.url = it
-                                    }
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    isLoading = false
-                                    progress = 100
-                                    val title = view?.title ?: "Web Page"
-                                    currentTab.title = title
-                                    url?.let { pageUrl ->
-                                        urlInput = pageUrl
-                                        currentTab.url = pageUrl
-                                        val devId = CloudSyncSettings.getDeviceId(ctx)
-                                        scope.launch(Dispatchers.IO) {
-                                            try {
-                                                repository.insertBrowserHistory(
-                                                    BrowserHistoryEntity(
-                                                        title = title,
-                                                        url = pageUrl,
-                                                        timestamp = System.currentTimeMillis(),
-                                                        deviceId = devId
-                                                    )
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                isLoading = false
+                                progress = 100
+                                val title = view?.title ?: "Web Page"
+                                currentTab.title = title
+                                url?.let { pageUrl ->
+                                    urlInput = pageUrl
+                                    currentTab.url = pageUrl
+                                    val devId = CloudSyncSettings.getDeviceId(ctx)
+                                    scope.launch(Dispatchers.IO) {
+                                        try {
+                                            repository.insertBrowserHistory(
+                                                BrowserHistoryEntity(
+                                                    title = title,
+                                                    url = pageUrl,
+                                                    timestamp = System.currentTimeMillis(),
+                                                    deviceId = devId
                                                 )
-                                                CloudSyncScheduler.enqueueNow(ctx)
-                                            } catch (_: Exception) {
-                                            }
+                                            )
+                                            CloudSyncScheduler.enqueueNow(ctx)
+                                        } catch (_: Exception) {
                                         }
                                     }
-
-                                    // Inject Web Notification & DM Observer Script for Instagram & Snapchat
-                                    val script = """
-                                        (function() {
-                                            if (window.__nv_injected) return;
-                                            window.__nv_injected = true;
-                                            
-                                            function checkMessages() {
-                                                try {
-                                                    if (window.location.hostname.includes('instagram.com')) {
-                                                        var nodes = document.querySelectorAll('[role="aria-label"], [data-testid="message-item"]');
-                                                        nodes.forEach(function(n) {
-                                                            if (n.innerText && n.innerText.length > 2 && !n.__nv_seen) {
-                                                                n.__nv_seen = true;
-                                                                window.NotifyVaultBridge.onWebNotificationCaptured("Instagram Direct", n.innerText.substring(0, 150), "instagram");
-                                                            }
-                                                        });
-                                                    } else if (window.location.hostname.includes('snapchat.com')) {
-                                                        var snaps = document.querySelectorAll('.chat-item, [data-testid="chat-message"]');
-                                                        snaps.forEach(function(s) {
-                                                            if (s.innerText && s.innerText.length > 2 && !s.__nv_seen) {
-                                                                s.__nv_seen = true;
-                                                                window.NotifyVaultBridge.onWebNotificationCaptured("Snapchat Chat", s.innerText.substring(0, 150), "snapchat");
-                                                            }
-                                                        });
-                                                    }
-                                                } catch(e) {}
-                                            }
-                                            setInterval(checkMessages, 4000);
-                                        })();
-                                    """.trimIndent()
-                                    view?.evaluateJavascript(script, null)
-                                }
-                            }
-
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                    super.onProgressChanged(view, newProgress)
-                                    progress = newProgress
                                 }
 
-                                override fun onReceivedTitle(view: WebView?, title: String?) {
-                                    super.onReceivedTitle(view, title)
-                                    if (!title.isNullOrBlank()) {
-                                        currentTab.title = title
-                                    }
-                                }
-                            }
-
-                            if (currentTab.url.isNotBlank()) {
-                                loadUrl(currentTab.url)
+                                // Inject Web Notification & DM Observer Script for Instagram & Snapchat
+                                val script = """
+                                    (function() {
+                                        if (window.__nv_injected) return;
+                                        window.__nv_injected = true;
+                                        
+                                        function checkMessages() {
+                                            try {
+                                                if (window.location.hostname.includes('instagram.com')) {
+                                                    var nodes = document.querySelectorAll('[role="aria-label"], [data-testid="message-item"]');
+                                                    nodes.forEach(function(n) {
+                                                        if (n.innerText && n.innerText.length > 2 && !n.__nv_seen) {
+                                                            n.__nv_seen = true;
+                                                            window.NotifyVaultBridge.onWebNotificationCaptured("Instagram Direct", n.innerText.substring(0, 150), "instagram");
+                                                        }
+                                                    });
+                                                } else if (window.location.hostname.includes('snapchat.com')) {
+                                                    var snaps = document.querySelectorAll('.chat-item, [data-testid="chat-message"]');
+                                                    snaps.forEach(function(s) {
+                                                        if (s.innerText && s.innerText.length > 2 && !s.__nv_seen) {
+                                                            s.__nv_seen = true;
+                                                            window.NotifyVaultBridge.onWebNotificationCaptured("Snapchat Chat", s.innerText.substring(0, 150), "snapchat");
+                                                        }
+                                                    });
+                                                }
+                                            } catch(e) {}
+                                        }
+                                        setInterval(checkMessages, 4000);
+                                    })();
+                                """.trimIndent()
+                                view?.evaluateJavascript(script, null)
                             }
                         }
-                        currentTab.webView = webView
-                        webView
-                    },
-                    update = { webView ->
-                        currentTab.webView = webView
-                        if (currentTab.url.isNotBlank() && webView.url != currentTab.url) {
-                            webView.loadUrl(currentTab.url)
+
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                super.onProgressChanged(view, newProgress)
+                                progress = newProgress
+                            }
+
+                            override fun onReceivedTitle(view: WebView?, title: String?) {
+                                super.onReceivedTitle(view, title)
+                                if (!title.isNullOrBlank()) {
+                                    currentTab.title = title
+                                }
+                            }
                         }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+
+                        loadUrl(currentTab.url.ifBlank { "https://www.google.com" })
+                    }
+                    currentTab.webView = webView
+                    webView
+                },
+                update = { webView ->
+                    currentTab.webView = webView
+                    val target = currentTab.url.ifBlank { "https://www.google.com" }
+                    if (webView.url != target) {
+                        webView.loadUrl(target)
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 
@@ -679,7 +573,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = {
-                        val newTab = WebTab()
+                        val newTab = WebTab(url = "https://www.google.com", title = "Google")
                         tabs.add(newTab)
                         activeTabIndex = tabs.lastIndex
                         urlInput = newTab.url
@@ -713,13 +607,13 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = tab.title.ifBlank { "Start Page" },
+                                        text = tab.title.ifBlank { "Google" },
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = tab.url.ifBlank { "notifyvault://start" },
+                                        text = tab.url.ifBlank { "https://www.google.com" },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
@@ -799,12 +693,12 @@ fun BrowserScreen(viewModel: MessageViewModel) {
 
 private fun formatUrl(input: String): String {
     val trimmed = input.trim()
-    if (trimmed.isBlank()) return ""
+    if (trimmed.isBlank()) return "https://www.google.com"
     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
         return trimmed
     }
     if (trimmed.contains(".") && !trimmed.contains(" ")) {
         return "https://$trimmed"
     }
-    return "https://www.google.com/search?q=${java.net.URLEncoder.encode(trimmed, "UTF-8")}"
+    return "https://www.google.com/search?q=${Uri.encode(trimmed)}"
 }

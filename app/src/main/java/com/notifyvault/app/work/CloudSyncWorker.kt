@@ -152,6 +152,14 @@ class CloudSyncClient(private val context: Context) {
     fun sendSyncRequest(entry: SyncQueueEntity): Boolean {
         return try {
             val payload = JSONObject(entry.payloadJson)
+            if (payload.has("messageId")) {
+                payload.put("messageId", payload.get("messageId").toString())
+            } else {
+                payload.put("messageId", entry.messageId.toString())
+            }
+            if (!payload.has("deviceId")) {
+                payload.put("deviceId", CloudSyncSettings.getDeviceId(context))
+            }
             val url = URL("${baseUrl}/api/messages/sync")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"

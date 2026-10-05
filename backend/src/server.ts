@@ -61,6 +61,12 @@ app.use(express.json({ limit: '2mb' }));
 app.use(morgan(isProduction ? 'combined' : 'dev'));
 app.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
 
+import path from 'path';
+
+// Serve Admin Dashboard Static Assets
+app.use('/admin', express.static(path.join(process.cwd(), 'admin')));
+app.use(express.static(path.join(process.cwd(), 'admin')));
+
 // Health Check Endpoints
 app.get(['/', '/health', '/api/health'], (_req, res) => {
   res.json({
@@ -336,8 +342,18 @@ app.post('/api/messages/sync', requireAuth, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ message: 'Invalid message payload' });
 
   const { messageId, sender, messageText, capturedAt, deviceId, sourcePackage, notificationTitle, conversationId } = parsed.data;
-  const device = await Device.findOne({ deviceId, userId: currentUser.sub, status: 'ACTIVE' });
-  if (!device) return res.status(403).json({ message: 'Unauthorized device' });
+  let device = await Device.findOne({ deviceId, userId: currentUser.sub });
+  if (!device) {
+    device = await Device.create({
+      userId: currentUser.sub,
+      deviceId,
+      deviceName: (req.headers['x-device-name'] as string) || 'This device',
+      status: 'ACTIVE',
+      online: true,
+      lastSeen: new Date(),
+      lastSync: new Date()
+    });
+  }
 
   const exists = await Message.findOne({ messageId });
   if (exists) return res.status(200).json({ accepted: true, duplicate: true });

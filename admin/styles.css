@@ -70,7 +70,7 @@ button.secondary {
 .stat-card.success { background: linear-gradient(135deg, rgba(52,211,153,.22), rgba(15,23,42,.85)); }
 .stat-card.warning { background: linear-gradient(135deg, rgba(251,191,36,.18), rgba(15,23,42,.85)); }
 .stat-card.info { background: linear-gradient(135deg, rgba(96,165,250,.18), rgba(15,23,42,.85)); }
-.panel-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 22px; }
+.panel-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
 .panel-card { padding: 20px; }
 .table-wrap { overflow-x: auto; margin-top: 16px; }
 table { width: 100%; border-collapse: collapse; min-width: 600px; }
@@ -83,7 +83,23 @@ th { color: var(--muted); font-size: 11px; letter-spacing: 0.08em; text-transfor
 .status-pill.offline { background: rgba(251,191,36,.12); color: var(--warning); border-color: rgba(251,191,36,.25); }
 .chip.neutral { background: rgba(148,163,184,.08); color: var(--muted); }
 .chip.info { background: rgba(96,165,250,.12); color: var(--info); }
+
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.app-badge.whatsapp { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+.app-badge.instagram { background: rgba(236, 72, 153, 0.15); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3); }
+.app-badge.snapchat { background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.3); }
+.app-badge.other { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
+
 @media (max-width: 900px) {
   .panel-grid { grid-template-columns: 1fr; }
 }
-

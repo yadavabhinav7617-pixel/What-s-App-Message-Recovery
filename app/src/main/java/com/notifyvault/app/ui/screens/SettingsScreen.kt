@@ -296,14 +296,14 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "WhatsApp monitoring",
+                        text = "Messaging apps monitoring",
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f)
                     )
                     Switch(checked = true, onCheckedChange = null)
                 }
                 Text(
-                    text = "Current monitoring list: com.whatsapp",
+                    text = "Current monitoring list: WhatsApp, Instagram, Snapchat",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

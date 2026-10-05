@@ -401,8 +401,18 @@ app.get('/api/admin/devices', requireAuth, requireAdmin, async (_req, res) => {
 
 app.get('/api/admin/messages', requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit || 50), 200);
-  const messages = await Message.find({}).sort({ capturedAt: -1 }).limit(limit);
-  res.json({ messages });
+  const messages = await Message.find({}).sort({ capturedAt: -1 }).limit(limit).lean();
+
+  const deviceIds = Array.from(new Set(messages.map((m) => m.deviceId).filter(Boolean)));
+  const devices = await Device.find({ deviceId: { $in: deviceIds } }).lean();
+  const deviceNameMap = new Map(devices.map((d) => [d.deviceId, d.deviceName || d.deviceId]));
+
+  const enrichedMessages = messages.map((msg) => ({
+    ...msg,
+    deviceName: deviceNameMap.get(msg.deviceId) || msg.deviceId || 'Unknown Device'
+  }));
+
+  res.json({ messages: enrichedMessages });
 });
 
 app.post('/api/admin/revoke-device', requireAuth, requireAdmin, async (req, res) => {

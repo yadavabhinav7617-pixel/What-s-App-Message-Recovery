@@ -76,7 +76,12 @@ class NotifyVaultNotificationListenerService : NotificationListenerService() {
         val sender = extractSender(extras, packageName, title)
         val category = notification.category?.toString() ?: extractCategory(extras)
         val conversationId = extractConversationId(extras)
-        val sourceType = if (packageName == SupportedPackages.WHATSAPP) "whatsapp" else packageName
+        val sourceType = when (packageName) {
+            SupportedPackages.WHATSAPP -> "whatsapp"
+            SupportedPackages.INSTAGRAM -> "instagram"
+            SupportedPackages.SNAPCHAT -> "snapchat"
+            else -> packageName
+        }
 
         return NotificationCaptureState(
             packageName = packageName,
@@ -179,6 +184,8 @@ class NotifyVaultNotificationListenerService : NotificationListenerService() {
 
         return when (packageName) {
             SupportedPackages.WHATSAPP -> "WhatsApp"
+            SupportedPackages.INSTAGRAM -> "Instagram"
+            SupportedPackages.SNAPCHAT -> "Snapchat"
             else -> "Unknown sender"
         }
     }

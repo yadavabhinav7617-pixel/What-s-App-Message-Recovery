@@ -193,7 +193,7 @@ fun HomeScreen(viewModel: MessageViewModel, navController: NavController) {
                 if (recentMessages.isEmpty()) {
                     EmptyStateCard(
                         title = "No messages yet",
-                        message = "Enable Notification Access and try a WhatsApp notification to begin capturing your history.",
+                        message = "Enable Notification Access to start capturing notifications from WhatsApp, Instagram, and Snapchat.",
                         icon = Icons.Default.NotificationsActive,
                         action = {
                             Button(onClick = { SupportNotificationAccess.openNotificationAccessSettings(navController.context) }) {

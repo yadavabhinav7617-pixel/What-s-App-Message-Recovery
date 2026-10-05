@@ -38,7 +38,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +67,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showAgeDeleteConfirm by remember { mutableStateOf<Int?>(null) }
@@ -505,7 +508,7 @@ fun SettingsScreen(
                     )
                     if (adminLoginError) {
                         Text(
-                            text = "Invalid credentials. Use admin@notifyvault.local / ChangeMe123!",
+                            text = "Invalid credentials. Please check your email and password.",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.labelSmall
                         )
@@ -514,13 +517,15 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val success = viewModel.loginAdmin(adminEmailInput, adminPassInput)
-                    if (success) {
-                        adminLoginError = false
-                        showAdminLoginDialog = false
-                        adminPassInput = ""
-                    } else {
-                        adminLoginError = true
+                    coroutineScope.launch {
+                        val success = viewModel.loginAdminAsync(adminEmailInput, adminPassInput)
+                        if (success) {
+                            adminLoginError = false
+                            showAdminLoginDialog = false
+                            adminPassInput = ""
+                        } else {
+                            adminLoginError = true
+                        }
                     }
                 }) {
                     Text("Login")

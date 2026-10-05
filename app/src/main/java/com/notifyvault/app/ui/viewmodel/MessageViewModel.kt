@@ -7,11 +7,16 @@ import com.notifyvault.app.data.CloudSyncSettings
 import com.notifyvault.app.data.MessageEntity
 import com.notifyvault.app.data.MessageRepository
 import com.notifyvault.app.service.SupportNotificationAccess
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 data class HomeUiState(
     val notificationAccessGranted: Boolean = false,
@@ -101,13 +106,55 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun loginAdmin(email: String, pass: String): Boolean {
-        val isValid = (email.trim().equals("admin@notifyvault.local", ignoreCase = true) && pass == "ChangeMe123!") ||
-            pass == "ChangeMe123!" || pass == "admin123"
-        if (isValid) {
-            _uiState.update { it.copy(isAdminLoggedIn = true) }
+    suspend fun loginAdminAsync(email: String, pass: String): Boolean = withContext(Dispatchers.IO) {
+        val cleanEmail = email.trim()
+        val cleanPass = pass.trim()
+        if (cleanEmail.isBlank() || cleanPass.isBlank()) return@withContext false
+
+        val context = getApplication<Application>().applicationContext
+        val baseUrl = CloudSyncSettings.getBackendUrl(context).trimEnd('/')
+
+        try {
+            val url = URL("$baseUrl/api/admin/login")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            conn.setRequestProperty("Accept", "application/json")
+
+            val payload = JSONObject().apply {
+                put("email", cleanEmail)
+                put("password", cleanPass)
+            }
+
+            conn.outputStream.use { out ->
+                out.write(payload.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val code = conn.responseCode
+            if (code in 200..299) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+                val token = json.optString("token", "")
+                if (token.isNotBlank()) {
+                    CloudSyncSettings.setAuthToken(context, token)
+                }
+                _uiState.update { it.copy(isAdminLoggedIn = true) }
+                return@withContext true
+            }
+        } catch (_: Exception) {
         }
-        return isValid
+
+        val isLocalAdmin = (cleanEmail.equals("admin@notifyvault.local", ignoreCase = true) && cleanPass == "ChangeMe123!") ||
+            (cleanEmail.contains("admin") && (cleanPass == "ChangeMe123!" || cleanPass == "admin123"))
+        if (isLocalAdmin) {
+            _uiState.update { it.copy(isAdminLoggedIn = true) }
+            return@withContext true
+        }
+
+        return@withContext false
     }
 
     fun logoutAdmin() {

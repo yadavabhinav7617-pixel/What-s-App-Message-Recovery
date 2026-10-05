@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - NotifyVault</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-dark: #3730A3;
+            --bg: #F8FAFC;
+            --card-bg: #FFFFFF;
+            --text-main: #0F172A;
+            --text-muted: #475569;
+            --border: #E2E8F0;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary: #818CF8;
+                --primary-dark: #6366F1;
+                --bg: #0F172A;
+                --card-bg: #1E293B;
+                --text-main: #F8FAFC;
+                --text-muted: #94A3B8;
+                --border: #334155;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #312E81 0%, #4338CA 100%);
+            color: #FFFFFF;
+            padding: 3rem 1.5rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.25rem;
+            font-weight: 800;
+        }
+
+        .header p {
+            margin-top: 0.5rem;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: -2rem auto 3rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-bottom: 1.5rem;
+        }
+
+        h2 {
+            color: var(--primary);
+            font-size: 1.35rem;
+            margin-top: 0;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        p, li {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        ul {
+            padding-left: 1.25rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: rgba(79, 70, 229, 0.1);
+            color: var(--primary);
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>NotifyVault</h1>
+        <p>Privacy Policy & Data Security Disclosure</p>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <span class="badge">Privacy First Guarantee</span>
+            <h2>1. Overview & Commitment</h2>
+            <p><strong>NotifyVault</strong> ("we", "our", or "the app") is designed as a privacy-focused local notification vault for Android. Your privacy is our highest priority.</p>
+            <p>NotifyVault operates <strong>100% locally on your device</strong>. All captured notifications, message texts, timestamps, and metadata are saved strictly inside your device's local database and are <strong>never uploaded, transmitted, or shared</strong> with any external server, cloud service, or third party.</p>
+        </div>
+
+        <div class="card">
+            <h2>2. Android Notification Access Permission</h2>
+            <p>To provide its core functionality (saving a local copy of incoming notifications from supported messaging apps such as WhatsApp), NotifyVault requests Android's <code>BIND_NOTIFICATION_LISTENER_SERVICE</code> permission.</p>
+            <ul>
+                <li><strong>Explicit Authorization:</strong> Notification Access is disabled by default and requires your explicit consent through Android system settings.</li>
+                <li><strong>Scope of Access:</strong> The app processes incoming notification content exposed by the Android system while Notification Access is enabled.</li>
+                <li><strong>No Database Tampering:</strong> NotifyVault does not access private WhatsApp files, private chat databases, or any unauthorized app storage. It processes only what Android displays in your notification tray.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>3. Information Collected & Storage</h2>
+            <p>The app stores the following data <strong>locally on your device only</strong>:</p>
+            <ul>
+                <li>Notification sender name and conversation title</li>
+                <li>Notification text message content</li>
+                <li>Timestamp of when the notification was posted and captured</li>
+                <li>Source app package name (e.g., <code>com.whatsapp</code>)</li>
+            </ul>
+            <p>This data remains stored in a local SQLite/Room database on your device and is accessible only to you through the app interface.</p>
+        </div>
+
+        <div class="card">
+            <h2>4. Third-Party Sharing & Cloud Services</h2>
+            <p>NotifyVault contains:</p>
+            <ul>
+                <li><strong>NO Analytics SDKs</strong> (No Google Analytics, Firebase, Mixpanel, etc.)</li>
+                <li><strong>NO Advertising SDKs</strong> (No AdMob, Unity Ads, etc.)</li>
+                <li><strong>NO External Server Connections</strong> (No data transmitted over the internet)</li>
+                <li><strong>NO Cloud Backups</strong></li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>5. User Control & Data Retention</h2>
+            <p>You maintain full control over your saved notification history:</p>
+            <ul>
+                <li><strong>Manual Deletion:</strong> You can delete individual messages or clear all saved records at any time from the app interface.</li>
+                <li><strong>Automatic Cleanup:</strong> Built-in retention options allow automatically deleting entries older than 7, 30, or 90 days.</li>
+                <li><strong>Data Export:</strong> You can export a JSON copy of your saved data locally via the Storage settings using Android's Storage Access Framework.</li>
+                <li><strong>Revoking Access:</strong> You can disable Notification Access at any time via Android System Settings &gt; Notification Access.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>6. Children's Privacy</h2>
+            <p>NotifyVault does not knowingly collect or solicit any personal information from children. Because all data remains stored locally on the user's device, no personal data is collected by us from any user.</p>
+        </div>
+
+        <div class="card">
+            <h2>7. Contact & Support</h2>
+            <p>If you have any questions or concerns regarding this Privacy Policy or NotifyVault, please feel free to contact us:</p>
+            <p><strong>Email:</strong> support@notifyvault.app</p>
+            <p><strong>Last Updated:</strong> October 2026</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        &copy; 2026 NotifyVault. All rights reserved. Local & Secure Notification Vault.
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,21 @@
+# Gradle & Android Build Outputs
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+
+# IDE & Editor files
+.idea/
+*.iml
+
+# Node / Backend
+node_modules/
+backend/node_modules/
+backend/dist/
+.env
+backend/.env
+
+# Local Artifacts & Logs
+.artifacts/
+*.log

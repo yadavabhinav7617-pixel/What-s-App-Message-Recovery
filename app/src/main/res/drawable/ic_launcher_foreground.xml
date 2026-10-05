@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer Shield Silhouette -->
+    <path
+        android:pathData="M54,26 L76,33 C76,57 66,72 54,78 C42,72 32,57 32,33 Z"
+        android:strokeWidth="3.5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:angle="90"
+                android:endColor="#A5B4FC"
+                android:startColor="#818CF8"
+                android:type="linear" />
+        </aapt:attr>
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:angle="135"
+                android:endColor="#1E1B4B"
+                android:startColor="#3730A3"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+
+    <!-- Inner Chat/Notification Bubble Emblem inside Shield -->
+    <path
+        android:pathData="M44,40 H64 C66.2,40 68,41.8 68,44 V54 C68,56.2 66.2,58 64,58 H54 L48,63 V58 H44 C41.8,58 40,56.2 40,54 V44 C40,41.8 41.8,40 44,40 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Lock Keyhole symbol in Message Bubble -->
+    <path
+        android:pathData="M54,46 C52.6,46 51.5,47.1 51.5,48.5 C51.5,49.4 52,50.2 52.8,50.7 L52.2,54 H55.8 L55.2,50.7 C56,50.2 56.5,49.4 56.5,48.5 C56.5,47.1 55.4,46 54,46 Z"
+        android:fillColor="#4F46E5" />
+
+    <!-- Glowing Active Status Dot -->
+    <path
+        android:pathData="M66,38 A4,4 0 1,1 58,38 A4,4 0 1,1 66,38 Z"
+        android:fillColor="#34D399" />
+</vector>

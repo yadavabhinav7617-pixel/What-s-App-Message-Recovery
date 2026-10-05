@@ -61,6 +61,17 @@ app.use(express.json({ limit: '2mb' }));
 app.use(morgan(isProduction ? 'combined' : 'dev'));
 app.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
 
+// Health Check Endpoints (Placed BEFORE DB connection middleware so health checks never fail due to DB state)
+app.get(['/', '/health', '/api/health'], (_req, res) => {
+  res.json({
+    ok: true,
+    service: 'NotifyVault Backend',
+    status: 'online',
+    dbConnected: mongoose.connection.readyState === 1,
+    timestamp: new Date().toISOString()
+  });
+});
+
 let isDbConnected = false;
 
 async function bootstrapAdmin() {
@@ -79,15 +90,20 @@ async function ensureDbConnected() {
     return;
   }
   if (!mongoUri) {
-    console.warn('MONGODB_URI is not set. Database features will be unavailable.');
-    return;
+    throw new Error('MONGODB_URI environment variable is missing on Vercel.');
   }
-  await mongoose.connect(mongoUri);
-  isDbConnected = true;
-  await bootstrapAdmin();
+  try {
+    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
+    isDbConnected = true;
+    await bootstrapAdmin();
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    throw err;
+  }
 }
 
-app.use(async (_req, _res, next) => {
+// Ensure Database is connected for all API routes
+app.use('/api', async (_req, _res, next) => {
   try {
     await ensureDbConnected();
     next();
@@ -213,8 +229,6 @@ const adminRateLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: 'Too many admin login attempts, try again later.' }
 });
-
-app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/api/admin/stream', requireAuth, requireAdmin, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -405,8 +419,10 @@ app.post('/api/admin/revoke-device', requireAuth, requireAdmin, async (req, res)
 });
 
 app.use((err: any, _req: any, res: any, _next: any) => {
-  console.error(err);
-  res.status(500).json({ message: 'Internal server error' });
+  console.error('Server error:', err);
+  res.status(500).json({
+    message: err?.message || 'Internal server error'
+  });
 });
 
 if (!process.env.VERCEL) {

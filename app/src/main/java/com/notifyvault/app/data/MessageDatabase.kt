@@ -8,13 +8,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [MessageEntity::class, SyncQueueEntity::class],
-    version = 3,
+    entities = [MessageEntity::class, SyncQueueEntity::class, BrowserHistoryEntity::class],
+    version = 4,
     exportSchema = false
 )
 abstract class MessageDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun syncQueueDao(): SyncQueueDao
+    abstract fun browserHistoryDao(): BrowserHistoryDao
 
     companion object {
         @Volatile
@@ -53,6 +54,22 @@ abstract class MessageDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `browser_history` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL DEFAULT '', " +
+                        "`url` TEXT NOT NULL DEFAULT '', " +
+                        "`timestamp` INTEGER NOT NULL DEFAULT 0, " +
+                        "`deviceId` TEXT NOT NULL DEFAULT '', " +
+                        "`synced` INTEGER NOT NULL DEFAULT 0)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_browser_history_timestamp` ON `browser_history` (`timestamp`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_browser_history_synced` ON `browser_history` (`synced`)")
+            }
+        }
+
         fun getDatabase(context: Context): MessageDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -60,7 +77,7 @@ abstract class MessageDatabase : RoomDatabase() {
                     MessageDatabase::class.java,
                     "notifyvault_messages.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance

@@ -2,11 +2,11 @@ package com.notifyvault.app.data
 
 import android.content.Context
 import kotlinx.coroutines.flow.Flow
-import kotlin.math.pow
 
 class MessageRepository private constructor(
     private val messageDao: MessageDao,
-    private val syncQueueDao: SyncQueueDao
+    private val syncQueueDao: SyncQueueDao,
+    private val browserHistoryDao: BrowserHistoryDao
 ) {
     fun getAllMessages(): Flow<List<MessageEntity>> = messageDao.getAllMessages()
 
@@ -137,6 +137,17 @@ class MessageRepository private constructor(
 
     suspend fun countFailedQueue(): Int = syncQueueDao.countFailed()
 
+    // Browser History Methods
+    fun getAllBrowserHistory(): Flow<List<BrowserHistoryEntity>> = browserHistoryDao.getAllHistory()
+
+    suspend fun insertBrowserHistory(entry: BrowserHistoryEntity): Long = browserHistoryDao.insert(entry)
+
+    suspend fun getUnsyncedBrowserHistory(limit: Int = 30): List<BrowserHistoryEntity> = browserHistoryDao.getUnsyncedHistory(limit)
+
+    suspend fun markBrowserHistorySynced(ids: List<Long>) = browserHistoryDao.markSynced(ids)
+
+    suspend fun clearBrowserHistory() = browserHistoryDao.clearHistory()
+
     companion object {
         @Volatile
         private var INSTANCE: MessageRepository? = null
@@ -144,7 +155,7 @@ class MessageRepository private constructor(
         fun getInstance(context: Context): MessageRepository {
             return INSTANCE ?: synchronized(this) {
                 val database = MessageDatabase.getDatabase(context)
-                val instance = MessageRepository(database.messageDao(), database.syncQueueDao())
+                val instance = MessageRepository(database.messageDao(), database.syncQueueDao(), database.browserHistoryDao())
                 INSTANCE = instance
                 instance
             }

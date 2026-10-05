@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.notifyvault.app.ui.screens.BrowserScreen
 import com.notifyvault.app.ui.screens.DetailScreen
 import com.notifyvault.app.ui.screens.HomeScreen
 import com.notifyvault.app.ui.screens.PrivacyScreen
@@ -28,6 +29,7 @@ import com.notifyvault.app.ui.viewmodel.MessageViewModel
 object AppDestinations {
     const val HOME = "home"
     const val SAVED_MESSAGES = "saved_messages"
+    const val BROWSER = "browser"
     const val MESSAGE_DETAILS = "message_details/{messageId}"
     const val SETTINGS = "settings"
     const val PRIVACY = "privacy"
@@ -47,6 +49,7 @@ fun AppNavGraph(
     val showBottomBar = currentRoute in listOf(
         AppDestinations.HOME,
         AppDestinations.SAVED_MESSAGES,
+        AppDestinations.BROWSER,
         AppDestinations.SETTINGS
     )
 
@@ -59,6 +62,7 @@ fun AppNavGraph(
                     listOf(
                         BottomNavItem.Home,
                         BottomNavItem.Messages,
+                        BottomNavItem.Browse,
                         BottomNavItem.Settings
                     ).forEach { item ->
                         val selected = currentRoute == item.route
@@ -96,6 +100,9 @@ fun AppNavGraph(
             }
             composable(AppDestinations.SAVED_MESSAGES) {
                 SavedMessagesScreen(viewModel = viewModel, navController = navController)
+            }
+            composable(AppDestinations.BROWSER) {
+                BrowserScreen(viewModel = viewModel)
             }
             composable(AppDestinations.MESSAGE_DETAILS) { backStackEntry ->
                 val messageId = backStackEntry.arguments?.getString("messageId")?.toLongOrNull()

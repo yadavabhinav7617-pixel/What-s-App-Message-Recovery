@@ -5,9 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.net.http.SslError
 import android.text.format.DateFormat
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
+import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -457,6 +459,10 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                         addJavascriptInterface(NotifyVaultWebBridge(ctx, repository), "NotifyVaultBridge")
 
                         webViewClient = object : WebViewClient() {
+                            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                                handler?.proceed()
+                            }
+
                             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                 val targetUrl = request?.url?.toString() ?: return false
                                 if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
@@ -561,7 +567,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                 update = { webView ->
                     currentTab.webView = webView
                     val target = currentTab.url.ifBlank { "https://www.google.com" }
-                    if (webView.url != target) {
+                    if (webView.url.isNullOrBlank() && target.isNotBlank()) {
                         webView.loadUrl(target)
                     }
                 },

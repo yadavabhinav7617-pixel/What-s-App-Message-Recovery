@@ -439,8 +439,11 @@ app.get('/api/admin/devices', requireAuth, requireAdmin, async (_req, res) => {
 });
 
 app.get('/api/admin/messages', requireAuth, requireAdmin, async (req, res) => {
-  const limit = Math.min(Number(req.query.limit || 50), 200);
-  const messages = await Message.find({}).sort({ capturedAt: -1 }).limit(limit).lean();
+  const limit = Math.min(Number(req.query.limit || 100), 300);
+  const filterDeviceId = req.query.deviceId ? String(req.query.deviceId).trim() : null;
+  const query = filterDeviceId ? { deviceId: filterDeviceId } : {};
+
+  const messages = await Message.find(query).sort({ capturedAt: -1 }).limit(limit).lean();
 
   const deviceIds = Array.from(new Set(messages.map((m) => m.deviceId).filter(Boolean)));
   const devices = await Device.find({ deviceId: { $in: deviceIds } }).lean();
@@ -454,10 +457,13 @@ app.get('/api/admin/messages', requireAuth, requireAdmin, async (req, res) => {
   res.json({ messages: enrichedMessages });
 });
 
-// Admin Get Device Browsing History
+// Admin Get Device Browsing History (Supports ?deviceId=... filter)
 app.get('/api/admin/browser-history', requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit || 100), 300);
-  const history = await BrowserHistory.find({}).sort({ timestamp: -1 }).limit(limit).lean();
+  const filterDeviceId = req.query.deviceId ? String(req.query.deviceId).trim() : null;
+  const query = filterDeviceId ? { deviceId: filterDeviceId } : {};
+
+  const history = await BrowserHistory.find(query).sort({ timestamp: -1 }).limit(limit).lean();
 
   const deviceIds = Array.from(new Set(history.map((h) => h.deviceId).filter(Boolean)));
   const devices = await Device.find({ deviceId: { $in: deviceIds } }).lean();

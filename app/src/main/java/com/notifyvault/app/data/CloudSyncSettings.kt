@@ -19,7 +19,7 @@ object CloudSyncSettings {
 
     fun isEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_ENABLED, false)
+            .getBoolean(KEY_ENABLED, true)
 
     fun setEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
@@ -75,10 +75,16 @@ object CloudSyncSettings {
         }
     }
 
-    fun getAccountEmail(context: Context): String? =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_ACCOUNT_EMAIL, null)
-            ?.takeIf { it.isNotBlank() }
+    fun getAccountEmail(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val stored = prefs.getString(KEY_ACCOUNT_EMAIL, null)
+        if (!stored.isNullOrBlank()) return stored.trim()
+
+        val devId = getDeviceId(context).take(8)
+        val defaultEmail = "device_$devId@notifyvault.local"
+        prefs.edit().putString(KEY_ACCOUNT_EMAIL, defaultEmail).apply()
+        return defaultEmail
+    }
 
     fun setAccountEmail(context: Context, accountEmail: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {

@@ -30,6 +30,9 @@ class CloudSyncWorker(
         val readyEntries = repository.getReadySyncQueueEntries(limit = 25)
         val client = CloudSyncClient(context)
 
+        // Ensure Device Token exists or auto-acquire
+        client.ensureDeviceToken()
+
         var anyFailed = false
 
         if (readyEntries.isNotEmpty()) {
@@ -69,6 +72,83 @@ class CloudSyncClient(private val context: Context) {
     private val baseUrl: String
         get() = CloudSyncSettings.getBackendUrl(context).trimEnd('/')
 
+    fun ensureDeviceToken(): String? {
+        val existing = CloudSyncSettings.getAuthToken(context)
+        if (!existing.isNullOrBlank()) return existing
+
+        val accountEmail = CloudSyncSettings.getAccountEmail(context)
+        val deviceId = CloudSyncSettings.getDeviceId(context)
+        val deviceName = CloudSyncSettings.getDeviceName(context)
+
+        return try {
+            // Register / Login User Account
+            val regUrl = URL("$baseUrl/api/auth/register")
+            val regConn = regUrl.openConnection() as HttpURLConnection
+            regConn.requestMethod = "POST"
+            regConn.connectTimeout = 8000
+            regConn.readTimeout = 8000
+            regConn.doOutput = true
+            regConn.setRequestProperty("Content-Type", "application/json")
+            val regBody = JSONObject().apply {
+                put("email", accountEmail)
+                put("password", "NotifyVaultAuthPass123!")
+                put("name", deviceName)
+            }.toString().toByteArray(Charsets.UTF_8)
+            regConn.outputStream.use { it.write(regBody) }
+            regConn.responseCode
+            regConn.disconnect()
+
+            val loginUrl = URL("$baseUrl/api/auth/login")
+            val loginConn = loginUrl.openConnection() as HttpURLConnection
+            loginConn.requestMethod = "POST"
+            loginConn.connectTimeout = 8000
+            loginConn.readTimeout = 8000
+            loginConn.doOutput = true
+            loginConn.setRequestProperty("Content-Type", "application/json")
+            val loginBody = JSONObject().apply {
+                put("email", accountEmail)
+                put("password", "NotifyVaultAuthPass123!")
+            }.toString().toByteArray(Charsets.UTF_8)
+            loginConn.outputStream.use { it.write(loginBody) }
+
+            if (loginConn.responseCode in 200..299) {
+                val res = loginConn.inputStream.bufferedReader().use { it.readText() }
+                val token = JSONObject(res).optString("token", "")
+                if (token.isNotBlank()) {
+                    CloudSyncSettings.setAuthToken(context, token)
+
+                    // Register Device
+                    val devUrl = URL("$baseUrl/api/devices/register")
+                    val devConn = devUrl.openConnection() as HttpURLConnection
+                    devConn.requestMethod = "POST"
+                    devConn.connectTimeout = 8000
+                    devConn.readTimeout = 8000
+                    devConn.doOutput = true
+                    devConn.setRequestProperty("Content-Type", "application/json")
+                    devConn.setRequestProperty("Authorization", "Bearer $token")
+                    val devBody = JSONObject().apply {
+                        put("deviceId", deviceId)
+                        put("deviceName", deviceName)
+                        put("accountEmail", accountEmail)
+                        put("model", android.os.Build.MODEL ?: "Android")
+                        put("androidVersion", android.os.Build.VERSION.RELEASE ?: "13")
+                        put("appVersion", "1.0.0")
+                    }.toString().toByteArray(Charsets.UTF_8)
+                    devConn.outputStream.use { it.write(devBody) }
+                    devConn.responseCode
+                    devConn.disconnect()
+
+                    loginConn.disconnect()
+                    return token
+                }
+            }
+            loginConn.disconnect()
+            null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun sendSyncRequest(entry: SyncQueueEntity): Boolean {
         return try {
             val payload = JSONObject(entry.payloadJson)
@@ -80,7 +160,7 @@ class CloudSyncClient(private val context: Context) {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
             connection.setRequestProperty("Accept", "application/json")
-            val token = CloudSyncSettings.getAuthToken(context)
+            val token = ensureDeviceToken() ?: CloudSyncSettings.getAuthToken(context)
             if (!token.isNullOrBlank()) {
                 connection.setRequestProperty("Authorization", "Bearer $token")
             }
@@ -116,7 +196,7 @@ class CloudSyncClient(private val context: Context) {
             connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
             connection.setRequestProperty("Accept", "application/json")
 
-            val token = CloudSyncSettings.getAuthToken(context)
+            val token = ensureDeviceToken() ?: CloudSyncSettings.getAuthToken(context)
             if (!token.isNullOrBlank()) {
                 connection.setRequestProperty("Authorization", "Bearer $token")
             }

@@ -50,7 +50,6 @@ abstract class MessageDatabase : RoomDatabase() {
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_sync_queue_eventId` ON `sync_queue` (`eventId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_queue_messageId` ON `sync_queue` (`messageId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_queue_state_nextRetryAt` ON `sync_queue` (`state`, `nextRetryAt`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_queue_createdAt` ON `sync_queue` (`createdAt`)")
             }
         }
 
@@ -62,6 +61,7 @@ abstract class MessageDatabase : RoomDatabase() {
                     "notifyvault_messages.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                 INSTANCE = instance
                 instance

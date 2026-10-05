@@ -38,21 +38,26 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         viewModelScope.launch {
-            repository.getAllMessages().collect { list ->
-                _messages.value = list
-                _uiState.update {
-                    it.copy(
-                        messageCount = list.size,
-                        oldestTimestamp = list.minOfOrNull { item -> item.capturedAt },
-                        newestTimestamp = list.maxOfOrNull { item -> item.capturedAt },
-                        storageEstimateBytes = estimateStorageBytes(list),
-                        cloudSyncEnabled = CloudSyncSettings.isEnabled(getApplication<Application>().applicationContext),
-                        pendingSyncCount = repository.countPendingQueue(),
-                        failedSyncCount = repository.countFailedQueue(),
-                        lastSyncTimestamp = CloudSyncSettings.getLastSyncTime(getApplication<Application>().applicationContext),
-                        registeredDeviceName = CloudSyncSettings.getDeviceName(getApplication<Application>().applicationContext)
-                    )
+            try {
+                repository.getAllMessages().collect { list ->
+                    _messages.value = list
+                    val pending = try { repository.countPendingQueue() } catch (_: Exception) { 0 }
+                    val failed = try { repository.countFailedQueue() } catch (_: Exception) { 0 }
+                    _uiState.update {
+                        it.copy(
+                            messageCount = list.size,
+                            oldestTimestamp = list.minOfOrNull { item -> item.capturedAt },
+                            newestTimestamp = list.maxOfOrNull { item -> item.capturedAt },
+                            storageEstimateBytes = estimateStorageBytes(list),
+                            cloudSyncEnabled = CloudSyncSettings.isEnabled(getApplication<Application>().applicationContext),
+                            pendingSyncCount = pending,
+                            failedSyncCount = failed,
+                            lastSyncTimestamp = CloudSyncSettings.getLastSyncTime(getApplication<Application>().applicationContext),
+                            registeredDeviceName = CloudSyncSettings.getDeviceName(getApplication<Application>().applicationContext)
+                        )
+                    }
                 }
+            } catch (_: Exception) {
             }
         }
         refreshNotificationAccess()
@@ -69,15 +74,20 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun refreshCloudStatus() {
         val context = getApplication<Application>().applicationContext
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    cloudSyncEnabled = CloudSyncSettings.isEnabled(context),
-                    connectionOnline = true,
-                    pendingSyncCount = repository.countPendingQueue(),
-                    failedSyncCount = repository.countFailedQueue(),
-                    lastSyncTimestamp = CloudSyncSettings.getLastSyncTime(context),
-                    registeredDeviceName = CloudSyncSettings.getDeviceName(context)
-                )
+            try {
+                val pending = try { repository.countPendingQueue() } catch (_: Exception) { 0 }
+                val failed = try { repository.countFailedQueue() } catch (_: Exception) { 0 }
+                _uiState.update {
+                    it.copy(
+                        cloudSyncEnabled = CloudSyncSettings.isEnabled(context),
+                        connectionOnline = true,
+                        pendingSyncCount = pending,
+                        failedSyncCount = failed,
+                        lastSyncTimestamp = CloudSyncSettings.getLastSyncTime(context),
+                        registeredDeviceName = CloudSyncSettings.getDeviceName(context)
+                    )
+                }
+            } catch (_: Exception) {
             }
         }
     }

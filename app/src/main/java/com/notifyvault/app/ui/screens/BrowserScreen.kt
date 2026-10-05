@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -166,9 +167,19 @@ fun BrowserScreen(viewModel: MessageViewModel) {
 
     val historyList by repository.getAllBrowserHistory().collectAsState(initial = emptyList())
 
+    val performSearch: (String) -> Unit = { query ->
+        val formatted = formatUrl(query)
+        if (formatted.isNotBlank()) {
+            urlInput = formatted
+            currentTab.url = formatted
+            currentTab.webView?.loadUrl(formatted)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .background(
                 brush = Brush.verticalGradient(
                     listOf(
@@ -179,14 +190,14 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                 )
             )
     ) {
-        // Professional Top Bar with Full-Width Address Field
+        // Professional Top Bar with Inset Padding
         Surface(
             tonalElevation = 6.dp,
             shadowElevation = 4.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                // Address Bar Row (Takes Full Available Width)
+                // Address Bar Row (Spans Full Available Width)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -210,21 +221,14 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                                 .fillMaxSize()
                                 .padding(horizontal = 12.dp)
                         ) {
-                            if (currentTab.url.startsWith("https://")) {
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = "Secure",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            } else {
-                                Icon(
-                                    Icons.Default.Search,
-                                    contentDescription = "Search",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = if (currentTab.url.startsWith("https://")) Icons.Default.Lock else Icons.Default.Search,
+                                contentDescription = "Search Icon",
+                                tint = if (currentTab.url.startsWith("https://")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clickable { performSearch(urlInput) }
+                            )
 
                             Spacer(modifier = Modifier.size(8.dp))
 
@@ -236,13 +240,13 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                                     color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 14.sp
                                 ),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                                keyboardActions = KeyboardActions(onGo = {
-                                    val formatted = formatUrl(urlInput)
-                                    urlInput = formatted
-                                    currentTab.url = formatted
-                                    currentTab.webView?.loadUrl(formatted)
-                                }),
+                                keyboardOptions = KeyboardOptions(
+                                    imeAction = ImeAction.Search
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onSearch = { performSearch(urlInput) },
+                                    onGo = { performSearch(urlInput) }
+                                ),
                                 modifier = Modifier.weight(1f)
                             ) { innerTextField ->
                                 if (urlInput.isEmpty()) {
@@ -259,7 +263,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                             if (urlInput.isNotBlank()) {
                                 IconButton(
                                     onClick = { urlInput = "" },
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(26.dp)
                                 ) {
                                     Icon(
                                         Icons.Default.Clear,
@@ -268,11 +272,23 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
+
+                                IconButton(
+                                    onClick = { performSearch(urlInput) },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = "Go",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // Modern Tab Switcher Button [ N ]
+                    // Tab Switcher Button [ N ]
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
@@ -294,7 +310,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                     }
                 }
 
-                // Sub-Toolbar: Evenly Spaced Navigation Controls
+                // Sub-Toolbar: Navigation Controls
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -383,7 +399,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
             }
         }
 
-        // Web Content / Modern Start Page View
+        // Web Content / Start Page View
         Box(modifier = Modifier.weight(1f)) {
             if (currentTab.url.isBlank()) {
                 // Modern Chrome/Edge-style Start Page
@@ -428,9 +444,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.clickable {
-                                    urlInput = shortcut.url
-                                    currentTab.url = shortcut.url
-                                    currentTab.webView?.loadUrl(shortcut.url)
+                                    performSearch(shortcut.url)
                                 }
                             ) {
                                 Box(
@@ -491,10 +505,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            val targetUrl = item.url
-                                            urlInput = targetUrl
-                                            currentTab.url = targetUrl
-                                            currentTab.webView?.loadUrl(targetUrl)
+                                            performSearch(item.url)
                                         }
                                 ) {
                                     Row(
@@ -631,14 +642,17 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                                 }
                             }
 
-                            loadUrl(currentTab.url)
+                            if (currentTab.url.isNotBlank()) {
+                                loadUrl(currentTab.url)
+                            }
                         }
                         currentTab.webView = webView
                         webView
                     },
                     update = { webView ->
-                        if (currentTab.webView != webView) {
-                            currentTab.webView = webView
+                        currentTab.webView = webView
+                        if (currentTab.url.isNotBlank() && webView.url != currentTab.url) {
+                            webView.loadUrl(currentTab.url)
                         }
                     },
                     modifier = Modifier.fillMaxSize()
@@ -760,10 +774,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        val targetUrl = item.url
-                                        urlInput = targetUrl
-                                        currentTab.url = targetUrl
-                                        currentTab.webView?.loadUrl(targetUrl)
+                                        performSearch(item.url)
                                         showHistorySheet = false
                                     }
                             ) {

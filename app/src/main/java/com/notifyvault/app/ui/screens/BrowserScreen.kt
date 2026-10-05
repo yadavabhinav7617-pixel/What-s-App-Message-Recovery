@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -50,8 +51,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,9 +68,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,7 +83,6 @@ import com.notifyvault.app.ui.viewmodel.MessageViewModel
 import com.notifyvault.app.work.CloudSyncScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-
 import java.util.Date
 
 data class WebTab(
@@ -181,95 +179,98 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                 )
             )
     ) {
-        // Modern Pill Address Bar & Navigation Toolbar
+        // Professional Top Bar with Full-Width Address Field
         Surface(
             tonalElevation = 6.dp,
             shadowElevation = 4.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                // Address Bar Row (Takes Full Available Width)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    IconButton(
-                        onClick = {
-                            if (currentTab.url.isBlank()) {
-                                // Already on start page
-                            } else if (currentTab.webView?.canGoBack() == true) {
-                                currentTab.webView?.goBack()
-                            } else {
-                                currentTab.url = ""
-                                urlInput = ""
-                            }
-                        }
+                    // Full-Width Pill Search Box
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-
-                    IconButton(
-                        onClick = { currentTab.webView?.goForward() },
-                        enabled = currentTab.webView?.canGoForward() == true
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Forward")
-                    }
-
-                    // Modern Pill Search / URL Bar
-                    OutlinedTextField(
-                        value = urlInput,
-                        onValueChange = { urlInput = it },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        placeholder = { Text("Search or type URL", style = MaterialTheme.typography.bodyMedium) },
-                        leadingIcon = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp)
+                        ) {
                             if (currentTab.url.startsWith("https://")) {
                                 Icon(
                                     Icons.Default.Lock,
                                     contentDescription = "Secure",
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             } else {
                                 Icon(
                                     Icons.Default.Search,
                                     contentDescription = "Search",
-                                    modifier = Modifier.size(18.dp)
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
-                        },
-                        trailingIcon = {
+
+                            Spacer(modifier = Modifier.size(8.dp))
+
+                            BasicTextField(
+                                value = urlInput,
+                                onValueChange = { urlInput = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 14.sp
+                                ),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                                keyboardActions = KeyboardActions(onGo = {
+                                    val formatted = formatUrl(urlInput)
+                                    urlInput = formatted
+                                    currentTab.url = formatted
+                                    currentTab.webView?.loadUrl(formatted)
+                                }),
+                                modifier = Modifier.weight(1f)
+                            ) { innerTextField ->
+                                if (urlInput.isEmpty()) {
+                                    Text(
+                                        "Search or type URL",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        maxLines = 1
+                                    )
+                                }
+                                innerTextField()
+                            }
+
                             if (urlInput.isNotBlank()) {
-                                IconButton(onClick = { urlInput = "" }) {
+                                IconButton(
+                                    onClick = { urlInput = "" },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
                                     Icon(
                                         Icons.Default.Clear,
                                         contentDescription = "Clear",
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            } else {
-                                IconButton(onClick = { currentTab.webView?.reload() }) {
-                                    Icon(
-                                        Icons.Default.Refresh,
-                                        contentDescription = "Reload",
-                                        modifier = Modifier.size(18.dp)
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
-                        },
-                        shape = RoundedCornerShape(24.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                            focusedBorderColor = MaterialTheme.colorScheme.primary
-                        ),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = {
-                            val formatted = formatUrl(urlInput)
-                            urlInput = formatted
-                            currentTab.url = formatted
-                            currentTab.webView?.loadUrl(formatted)
-                        })
-                    )
+                        }
+                    }
 
                     // Modern Tab Switcher Button [ N ]
                     Box(
@@ -291,17 +292,82 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
+                }
 
-                    // Home & History Buttons
-                    IconButton(onClick = {
-                        currentTab.url = ""
-                        urlInput = ""
-                    }) {
-                        Icon(Icons.Default.Home, contentDescription = "Start Page")
+                // Sub-Toolbar: Evenly Spaced Navigation Controls
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, start = 4.dp, end = 4.dp)
+                ) {
+                    IconButton(
+                        onClick = {
+                            if (currentTab.url.isBlank()) {
+                                // Already on start page
+                            } else if (currentTab.webView?.canGoBack() == true) {
+                                currentTab.webView?.goBack()
+                            } else {
+                                currentTab.url = ""
+                                urlInput = ""
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
-                    IconButton(onClick = { showHistorySheet = true }) {
-                        Icon(Icons.Default.History, contentDescription = "History")
+                    IconButton(
+                        onClick = { currentTab.webView?.goForward() },
+                        enabled = currentTab.webView?.canGoForward() == true,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Forward",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            currentTab.url = ""
+                            urlInput = ""
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Home,
+                            contentDescription = "Start Page",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { currentTab.webView?.reload() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Reload",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showHistorySheet = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.History,
+                            contentDescription = "History",
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
 
@@ -327,7 +393,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "NotifyVault Web",
                         style = MaterialTheme.typography.headlineMedium,
@@ -340,7 +406,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
                         text = "Quick Access Shortcuts",
@@ -393,7 +459,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     // Recently Visited Pages Section
                     Text(

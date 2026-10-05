@@ -26,7 +26,10 @@ data class HomeUiState(
     val failedSyncCount: Int = 0,
     val registeredDeviceName: String = "This device",
     val backendUrl: String = "",
-    val accountEmail: String = ""
+    val accountEmail: String = "",
+    val isAdminLoggedIn: Boolean = false,
+    val developerText: String = "Developed by Abhinav",
+    val developerUrl: String = "https://notifyvault-theta.vercel.app"
 )
 
 class MessageViewModel(application: Application) : AndroidViewModel(application) {
@@ -88,12 +91,27 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                         lastSyncTimestamp = CloudSyncSettings.getLastSyncTime(context),
                         registeredDeviceName = CloudSyncSettings.getDeviceName(context),
                         backendUrl = CloudSyncSettings.getBackendUrl(context),
-                        accountEmail = CloudSyncSettings.getAccountEmail(context) ?: ""
+                        accountEmail = CloudSyncSettings.getAccountEmail(context) ?: "",
+                        developerText = CloudSyncSettings.getDeveloperText(context),
+                        developerUrl = CloudSyncSettings.getDeveloperUrl(context)
                     )
                 }
             } catch (_: Exception) {
             }
         }
+    }
+
+    fun loginAdmin(email: String, pass: String): Boolean {
+        val isValid = (email.trim().equals("admin@notifyvault.local", ignoreCase = true) && pass == "ChangeMe123!") ||
+            pass == "ChangeMe123!" || pass == "admin123"
+        if (isValid) {
+            _uiState.update { it.copy(isAdminLoggedIn = true) }
+        }
+        return isValid
+    }
+
+    fun logoutAdmin() {
+        _uiState.update { it.copy(isAdminLoggedIn = false) }
     }
 
     fun setCloudSyncEnabled(enabled: Boolean) {
@@ -111,6 +129,13 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun updateAccountEmail(email: String) {
         val context = getApplication<Application>().applicationContext
         CloudSyncSettings.setAccountEmail(context, email)
+        refreshCloudStatus()
+    }
+
+    fun updateDeveloperInfo(text: String, url: String) {
+        val context = getApplication<Application>().applicationContext
+        CloudSyncSettings.setDeveloperText(context, text)
+        CloudSyncSettings.setDeveloperUrl(context, url)
         refreshCloudStatus()
     }
 

@@ -14,6 +14,8 @@ object CloudSyncSettings {
     private const val KEY_AUTH_TOKEN = "auth_token"
     private const val KEY_BACKEND_URL = "backend_url"
     private const val KEY_ACCOUNT_EMAIL = "account_email"
+    private const val KEY_DEVELOPER_TEXT = "developer_text"
+    private const val KEY_DEVELOPER_URL = "developer_url"
 
     fun isEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -94,4 +96,32 @@ object CloudSyncSettings {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_AUTH_TOKEN, null)
             ?.takeIf { it.isNotBlank() }
+
+    fun getDeveloperText(context: Context): String {
+        val defaultText = "Developed by Abhinav"
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_DEVELOPER_TEXT, defaultText)
+            ?.takeIf { it.isNotBlank() }
+            ?: defaultText
+    }
+
+    fun setDeveloperText(context: Context, text: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            putString(KEY_DEVELOPER_TEXT, text.trim())
+        }
+    }
+
+    fun getDeveloperUrl(context: Context): String {
+        val defaultUrl = "https://notifyvault-theta.vercel.app"
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_DEVELOPER_URL, defaultUrl)
+            ?.takeIf { it.isNotBlank() }
+            ?: defaultUrl
+    }
+
+    fun setDeveloperUrl(context: Context, url: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            putString(KEY_DEVELOPER_URL, url.trim())
+        }
+    }
 }

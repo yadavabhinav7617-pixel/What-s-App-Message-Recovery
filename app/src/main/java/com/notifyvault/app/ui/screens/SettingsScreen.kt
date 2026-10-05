@@ -1,6 +1,7 @@
 package com.notifyvault.app.ui.screens
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -44,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.notifyvault.app.service.SupportNotificationAccess
@@ -63,12 +65,25 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val context = LocalContext.current
+
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showAgeDeleteConfirm by remember { mutableStateOf<Int?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
-    var showAdminConfig by remember { mutableStateOf(false) }
+
+    // Secret Admin Portal state
+    var tapCount by remember { mutableStateOf(0) }
+    var lastTapTime by remember { mutableStateOf(0L) }
+    var showAdminLoginDialog by remember { mutableStateOf(false) }
+    var adminEmailInput by remember { mutableStateOf("") }
+    var adminPassInput by remember { mutableStateOf("") }
+    var adminLoginError by remember { mutableStateOf(false) }
+
+    // Admin unlocked fields state
     var backendUrlInput by remember(uiState.backendUrl) { mutableStateOf(uiState.backendUrl) }
     var accountEmailInput by remember(uiState.accountEmail) { mutableStateOf(uiState.accountEmail) }
+    var devTextEditing by remember(uiState.developerText) { mutableStateOf(uiState.developerText) }
+    var devUrlEditing by remember(uiState.developerUrl) { mutableStateOf(uiState.developerUrl) }
+
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) {
             context.contentResolver.openOutputStream(uri)?.use { output ->
@@ -197,16 +212,28 @@ fun SettingsScreen(
                 ) {
                     Text("Sync Now")
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { showAdminConfig = !showAdminConfig },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (showAdminConfig) "Hide Admin Server Config" else "Admin Server Config")
-                }
+            }
+        }
 
-                if (showAdminConfig) {
-                    Spacer(modifier = Modifier.height(10.dp))
+        if (uiState.isAdminLoggedIn) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Admin Portal Active",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Button(onClick = { viewModel.logoutAdmin() }) {
+                            Text("Logout Admin")
+                        }
+                    }
+
                     OutlinedTextField(
                         value = backendUrlInput,
                         onValueChange = { backendUrlInput = it },
@@ -214,7 +241,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+
                     OutlinedTextField(
                         value = accountEmailInput,
                         onValueChange = { accountEmailInput = it },
@@ -222,15 +249,32 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = devTextEditing,
+                        onValueChange = { devTextEditing = it },
+                        label = { Text("Developer Credit Text") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = devUrlEditing,
+                        onValueChange = { devUrlEditing = it },
+                        label = { Text("Developer Website URL") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
                     Button(
                         onClick = {
                             viewModel.updateBackendUrl(backendUrlInput)
                             viewModel.updateAccountEmail(accountEmailInput)
+                            viewModel.updateDeveloperInfo(devTextEditing, devUrlEditing)
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Save Server Config")
+                        Text("Save All Config")
                     }
                 }
             }
@@ -385,6 +429,109 @@ fun SettingsScreen(
                 }
             }
         }
+
+        // Footer Section
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "© 2026 NotifyVault",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.clickable {
+                    val now = System.currentTimeMillis()
+                    if (now - lastTapTime > 5000L) {
+                        tapCount = 1
+                    } else {
+                        tapCount++
+                    }
+                    lastTapTime = now
+                    if (tapCount >= 5) {
+                        tapCount = 0
+                        showAdminLoginDialog = true
+                    }
+                }
+            )
+
+            Text(
+                text = uiState.developerText,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable {
+                    val url = uiState.developerUrl
+                    if (url.isNotBlank()) {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    if (showAdminLoginDialog) {
+        AlertDialog(
+            onDismissRequest = { showAdminLoginDialog = false },
+            title = { Text("Secret Admin Portal Login") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Enter Super Admin credentials to unlock server configuration and developer credits.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = adminEmailInput,
+                        onValueChange = { adminEmailInput = it },
+                        label = { Text("Admin Email") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = adminPassInput,
+                        onValueChange = { adminPassInput = it },
+                        label = { Text("Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (adminLoginError) {
+                        Text(
+                            text = "Invalid credentials. Use admin@notifyvault.local / ChangeMe123!",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val success = viewModel.loginAdmin(adminEmailInput, adminPassInput)
+                    if (success) {
+                        adminLoginError = false
+                        showAdminLoginDialog = false
+                        adminPassInput = ""
+                    } else {
+                        adminLoginError = true
+                    }
+                }) {
+                    Text("Login")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAdminLoginDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showDeleteConfirm) {

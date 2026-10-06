@@ -16,6 +16,7 @@ object CloudSyncSettings {
     private const val KEY_ACCOUNT_EMAIL = "account_email"
     private const val KEY_DEVELOPER_TEXT = "developer_text"
     private const val KEY_DEVELOPER_URL = "developer_url"
+    private const val KEY_REGISTERED_USERS = "registered_users_json"
 
     fun isEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -128,6 +129,19 @@ object CloudSyncSettings {
     fun setDeveloperUrl(context: Context, url: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
             putString(KEY_DEVELOPER_URL, url.trim())
+        }
+    }
+
+    // --- User Management (Simulated Backend) ---
+    
+    fun getRegisteredUsers(context: Context): String {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_REGISTERED_USERS, "[]") ?: "[]"
+    }
+
+    fun setRegisteredUsers(context: Context, usersJson: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            putString(KEY_REGISTERED_USERS, usersJson)
         }
     }
 }

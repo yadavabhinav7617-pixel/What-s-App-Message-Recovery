@@ -13,13 +13,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -27,6 +32,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +53,14 @@ fun AdminDashboardScreen(
     var newEmail by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var actionMessage by remember { mutableStateOf<String?>(null) }
+    
+    val scope = rememberCoroutineScope()
+    
+    // Edit User Password State
+    var userToEdit by remember { mutableStateOf<String?>(null) }
+    var oldPassInput by remember { mutableStateOf("") }
+    var newPassInput by remember { mutableStateOf("") }
+    var passActionMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadRegisteredUsers()
@@ -126,13 +141,15 @@ fun AdminDashboardScreen(
                 
                 Button(
                     onClick = {
-                        val success = viewModel.createNewUser(newEmail, newPassword)
-                        if (success) {
-                            actionMessage = "User successfully created."
-                            newEmail = ""
-                            newPassword = ""
-                        } else {
-                            actionMessage = "Failed to create user. It may already exist or input is invalid."
+                        scope.launch {
+                            val success = viewModel.createNewUser(newEmail, newPassword)
+                            if (success) {
+                                actionMessage = "User successfully created."
+                                newEmail = ""
+                                newPassword = ""
+                            } else {
+                                actionMessage = "Failed to create user. It may already exist or input is invalid."
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -170,13 +187,92 @@ fun AdminDashboardScreen(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         )
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Email: ${user.first}", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
-                            Text("Pass: ${user.second}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Email: ${user.first}", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+                                Text("Pass: ${user.second}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row {
+                                IconButton(onClick = { 
+                                    userToEdit = user.first
+                                    oldPassInput = ""
+                                    newPassInput = ""
+                                    passActionMessage = null
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Change Password", tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { 
+                                    scope.launch { viewModel.deleteUser(user.first) }
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete User", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+    
+    // Change Password Dialog
+    if (userToEdit != null) {
+        AlertDialog(
+            onDismissRequest = { userToEdit = null },
+            title = { Text("Change Password") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(text = "Change password for $userToEdit", style = MaterialTheme.typography.bodyMedium)
+                    
+                    OutlinedTextField(
+                        value = oldPassInput,
+                        onValueChange = { oldPassInput = it; passActionMessage = null },
+                        label = { Text("Old Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    OutlinedTextField(
+                        value = newPassInput,
+                        onValueChange = { newPassInput = it; passActionMessage = null },
+                        label = { Text("New Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    if (passActionMessage != null) {
+                        Text(
+                            text = passActionMessage!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        val success = viewModel.changeUserPassword(userToEdit!!, oldPassInput, newPassInput)
+                        if (success) {
+                            userToEdit = null
+                        } else {
+                            passActionMessage = "Failed. Check if the old password is correct."
+                        }
+                    }
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { userToEdit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

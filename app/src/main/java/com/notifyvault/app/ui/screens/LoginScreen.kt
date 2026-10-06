@@ -58,9 +58,10 @@ fun LoginScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // If already logged in, navigate away immediately
-    LaunchedEffect(uiState.isUserLoggedIn) {
+    LaunchedEffect(uiState.isUserLoggedIn, uiState.isAdmin) {
         if (uiState.isUserLoggedIn) {
-            navController.navigate(AppDestinations.HOME) {
+            val destination = if (uiState.isAdmin) AppDestinations.ADMIN_DASHBOARD else AppDestinations.HOME
+            navController.navigate(destination) {
                 popUpTo(AppDestinations.LOGIN) { inclusive = true }
             }
         }

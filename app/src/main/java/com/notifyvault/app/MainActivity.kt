@@ -28,24 +28,17 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var themeMode by rememberSaveable { mutableStateOf(AppThemeMode.SYSTEM) }
-            var showOnboarding by rememberSaveable { mutableStateOf(true) }
 
             NotifyVaultTheme(themeMode = themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.Transparent
                 ) {
-                    if (showOnboarding) {
-                        OnboardingScreen(
-                            onFinish = { showOnboarding = false }
-                        )
-                    } else {
-                        AppNavGraph(
-                            viewModel = viewModel,
-                            themeMode = themeMode,
-                            onThemeModeChange = { themeMode = it }
-                        )
-                    }
+                    AppNavGraph(
+                        viewModel = viewModel,
+                        themeMode = themeMode,
+                        onThemeModeChange = { themeMode = it }
+                    )
                 }
             }
         }

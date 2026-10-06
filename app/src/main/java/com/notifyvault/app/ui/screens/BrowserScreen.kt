@@ -1,7 +1,6 @@
 package com.notifyvault.app.ui.screens
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -112,49 +111,17 @@ private val SHORTCUT_CHIPS = listOf(
     QuickShortcut("Facebook", "https://m.facebook.com", Color(0xFF1877F2))
 )
 
-class NotifyVaultWebBridge(
-    private val context: Context,
-    private val repository: MessageRepository
-) {
-    @JavascriptInterface
-    fun onWebNotificationCaptured(sender: String, messageText: String, sourceApp: String) {
-        val cleanSender = sender.trim().ifBlank { "In-App Web" }
-        val cleanMessage = messageText.trim()
-        if (cleanMessage.isBlank()) return
-
-        val pkg = when (sourceApp.lowercase()) {
-            "instagram" -> "com.instagram.android"
-            "snapchat" -> "com.snapchat.android"
-            else -> "com.notifyvault.app.browser"
-        }
-
-        val entity = MessageEntity(
-            sender = cleanSender,
-            conversationName = cleanSender,
-            messageText = cleanMessage,
-            timestamp = System.currentTimeMillis(),
-            packageName = pkg,
-            capturedAt = System.currentTimeMillis(),
-            sourceType = if (pkg.contains("instagram")) "instagram-web" else if (pkg.contains("snapchat")) "snapchat-web" else "web-browser"
-        )
-
-        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-            try {
-                repository.insertMessage(entity)
-                CloudSyncScheduler.enqueueNow(context)
-            } catch (_: Exception) {
-            }
-        }
-    }
-}
+data class SessionHistoryItem(
+    val title: String,
+    val url: String,
+    val timestamp: Long
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun BrowserScreen(viewModel: MessageViewModel) {
     val context = LocalContext.current
-    val repository = remember { MessageRepository.getInstance(context) }
-    val scope = rememberCoroutineScope()
 
     val tabs = remember { mutableStateListOf(WebTab()) }
     var activeTabIndex by remember { mutableStateOf(0) }
@@ -166,7 +133,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
     var showHistorySheet by remember { mutableStateOf(false) }
     var showTabSheet by remember { mutableStateOf(false) }
 
-    val historyList by repository.getAllBrowserHistory().collectAsState(initial = emptyList())
+    val sessionHistory = remember { mutableStateListOf<SessionHistoryItem>() }
 
     val performSearch: (String) -> Unit = { query ->
         val formatted = formatUrl(query)
@@ -441,7 +408,7 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         settings.databaseEnabled = true
-                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                         settings.useWideViewPort = true
                         settings.loadWithOverviewMode = true
                         settings.setSupportMultipleWindows(false)
@@ -451,12 +418,12 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                         settings.setSupportZoom(true)
                         settings.builtInZoomControls = true
                         settings.displayZoomControls = false
-                        settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                        
+                        // Using a hardcoded, clean Chrome Mobile User-Agent to bypass Meta's aggressive WebView blocking
+                        settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
 
                         CookieManager.getInstance().setAcceptCookie(true)
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-
-                        addJavascriptInterface(NotifyVaultWebBridge(ctx, repository), "NotifyVaultBridge")
 
                         webViewClient = object : WebViewClient() {
                             override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
@@ -469,6 +436,24 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                                     return false // Allow WebView to handle HTTP/HTTPS navigation naturally
                                 }
                                 try {
+                                    if (targetUrl.startsWith("intent://")) {
+                                        val intent = Intent.parseUri(targetUrl, Intent.URI_INTENT_SCHEME)
+                                        try {
+                                            ctx.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            // App not installed or can't be opened, use fallback URL
+                                            val fallbackUrl = intent.getStringExtra("browser_fallback_url")
+                                            if (fallbackUrl != null) {
+                                                view?.loadUrl(fallbackUrl)
+                                            } else {
+                                                // If no fallback URL is provided, try loading the standard web version
+                                                if (targetUrl.contains("instagram.com")) {
+                                                    view?.loadUrl("https://www.instagram.com")
+                                                }
+                                            }
+                                        }
+                                        return true
+                                    }
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl))
                                     ctx.startActivity(intent)
                                 } catch (_: Exception) {
@@ -494,54 +479,10 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                                 url?.let { pageUrl ->
                                     urlInput = pageUrl
                                     currentTab.url = pageUrl
-                                    val devId = CloudSyncSettings.getDeviceId(ctx)
-                                    scope.launch(Dispatchers.IO) {
-                                        try {
-                                            repository.insertBrowserHistory(
-                                                BrowserHistoryEntity(
-                                                    title = title,
-                                                    url = pageUrl,
-                                                    timestamp = System.currentTimeMillis(),
-                                                    deviceId = devId
-                                                )
-                                            )
-                                            CloudSyncScheduler.enqueueNow(ctx)
-                                        } catch (_: Exception) {
-                                        }
+                                    if (sessionHistory.none { it.url == pageUrl && (System.currentTimeMillis() - it.timestamp) < 5000 }) {
+                                        sessionHistory.add(0, SessionHistoryItem(title, pageUrl, System.currentTimeMillis()))
                                     }
                                 }
-
-                                // Inject Web Notification & DM Observer Script for Instagram & Snapchat
-                                val script = """
-                                    (function() {
-                                        if (window.__nv_injected) return;
-                                        window.__nv_injected = true;
-                                        
-                                        function checkMessages() {
-                                            try {
-                                                if (window.location.hostname.includes('instagram.com')) {
-                                                    var nodes = document.querySelectorAll('[role="aria-label"], [data-testid="message-item"]');
-                                                    nodes.forEach(function(n) {
-                                                        if (n.innerText && n.innerText.length > 2 && !n.__nv_seen) {
-                                                            n.__nv_seen = true;
-                                                            window.NotifyVaultBridge.onWebNotificationCaptured("Instagram Direct", n.innerText.substring(0, 150), "instagram");
-                                                        }
-                                                    });
-                                                } else if (window.location.hostname.includes('snapchat.com')) {
-                                                    var snaps = document.querySelectorAll('.chat-item, [data-testid="chat-message"]');
-                                                    snaps.forEach(function(s) {
-                                                        if (s.innerText && s.innerText.length > 2 && !s.__nv_seen) {
-                                                            s.__nv_seen = true;
-                                                            window.NotifyVaultBridge.onWebNotificationCaptured("Snapchat Chat", s.innerText.substring(0, 150), "snapchat");
-                                                        }
-                                                    });
-                                                }
-                                            } catch(e) {}
-                                        }
-                                        setInterval(checkMessages, 4000);
-                                    })();
-                                """.trimIndent()
-                                view?.evaluateJavascript(script, null)
                             }
                         }
 
@@ -669,21 +610,19 @@ fun BrowserScreen(viewModel: MessageViewModel) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Device Browsing History", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Session Browsing History", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     TextButton(onClick = {
-                        scope.launch(Dispatchers.IO) {
-                            repository.clearBrowserHistory()
-                        }
+                        sessionHistory.clear()
                     }) {
                         Text("Clear History")
                     }
                 }
 
-                if (historyList.isEmpty()) {
-                    Text("No browsing history recorded yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (sessionHistory.isEmpty()) {
+                    Text("No browsing history recorded in this session.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(historyList) { item ->
+                        items(sessionHistory) { item ->
                             Card(
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier

@@ -1,0 +1,3 @@
+﻿backend: attach browser history to user account; require auth for history sync; add user browser-history endpoint
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

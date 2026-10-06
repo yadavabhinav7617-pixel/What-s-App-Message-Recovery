@@ -5,14 +5,27 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.DecimalFormat
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalculatorScreen(onUnlock: () -> Unit) {
     var display by remember { mutableStateOf("0") }
@@ -36,6 +50,8 @@ fun CalculatorScreen(onUnlock: () -> Unit) {
     var pendingOperation by remember { mutableStateOf<String?>(null) }
     var operand1 by remember { mutableStateOf<Double?>(null) }
     var isNewOperand by remember { mutableStateOf(true) }
+    var historyList by remember { mutableStateOf(listOf<String>()) }
+    var showHistorySheet by remember { mutableStateOf(false) }
 
     val secretCode = "0000+0"
 
@@ -47,6 +63,7 @@ fun CalculatorScreen(onUnlock: () -> Unit) {
                 pendingOperation = null
                 operand1 = null
                 isNewOperand = true
+                historyList = emptyList()
             }
             "⌫" -> {
                 if (!isNewOperand && display.length > 1) {
@@ -79,10 +96,16 @@ fun CalculatorScreen(onUnlock: () -> Unit) {
                     pendingOperation = null
                     operand1 = null
                     isNewOperand = true
+                    historyList = emptyList()
                 } else if (operand1 != null && pendingOperation != null) {
+                    val op1Str = formatResult(operand1!!)
+                    val op2Str = display
                     val result = calculate(operand1!!, display.toDoubleOrNull() ?: 0.0, pendingOperation!!)
-                    display = formatResult(result)
-                    expression = display // Reset expression to result for chain calc
+                    val resStr = formatResult(result)
+                    historyList = historyList + "$op1Str $pendingOperation $op2Str = $resStr"
+                    
+                    display = resStr
+                    expression = resStr // Reset expression to result for chain calc
                     operand1 = result
                     pendingOperation = null
                     isNewOperand = true
@@ -113,26 +136,51 @@ fun CalculatorScreen(onUnlock: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF1E1E1E))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Bottom
+            .background(Color.Black)
+            .padding(16.dp)
     ) {
+        // Top Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            IconButton(onClick = { showHistorySheet = true }) {
+                Icon(
+                    imageVector = Icons.Default.History,
+                    contentDescription = "History",
+                    tint = Color.Gray
+                )
+            }
+        }
+
         // Display
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .padding(bottom = 16.dp),
-            contentAlignment = Alignment.BottomEnd
+            verticalArrangement = Arrangement.Bottom,
+            horizontalAlignment = Alignment.End
         ) {
+            Text(
+                text = expression,
+                color = Color.Gray.copy(alpha = 0.9f),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                textAlign = TextAlign.End,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
             Text(
                 text = display,
                 color = Color.White,
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Light,
+                fontSize = 72.sp,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.End,
                 maxLines = 1,
-                lineHeight = 70.sp
+                lineHeight = 76.sp
             )
         }
 
@@ -154,7 +202,8 @@ fun CalculatorScreen(onUnlock: () -> Unit) {
                     CalculatorButton(
                         text = btn,
                         modifier = Modifier.weight(1f),
-                        onClick = { handleInput(btn) }
+                        onClick = { handleInput(btn) },
+                        isActive = btn == pendingOperation
                     )
                 }
             }
@@ -162,24 +211,81 @@ fun CalculatorScreen(onUnlock: () -> Unit) {
         }
         Spacer(modifier = Modifier.height(16.dp))
     }
+    
+    if (showHistorySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showHistorySheet = false },
+            containerColor = Color(0xFF1E1E1E)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.6f)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Calculation History", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    if (historyList.isNotEmpty()) {
+                        Text(
+                            text = "Clear",
+                            color = Color(0xFFFF9500),
+                            modifier = Modifier.clickable { historyList = emptyList() }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                if (historyList.isEmpty()) {
+                    Text("No history yet.", color = Color.Gray)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        reverseLayout = false
+                    ) {
+                        items(historyList) { pastCalc ->
+                            Text(
+                                text = pastCalc,
+                                color = Color.Gray.copy(alpha = 0.9f),
+                                fontSize = 24.sp,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun CalculatorButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isActive: Boolean = false
 ) {
     val isOperator = text in listOf("÷", "×", "-", "+", "=")
     val isAction = text in listOf("C", "⌫", "%")
     
     val bgColor = when {
+        isActive -> Color.White
         isOperator -> Color(0xFFFF9500) // Classic orange
         isAction -> Color(0xFFA5A5A5)   // Light gray
         else -> Color(0xFF333333)       // Dark gray
     }
     
-    val textColor = if (isAction) Color.Black else Color.White
+    val textColor = when {
+        isActive -> Color(0xFFFF9500)
+        isAction -> Color.Black
+        else -> Color.White
+    }
 
     Box(
         modifier = modifier
@@ -189,12 +295,21 @@ fun CalculatorButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = textColor,
-            fontSize = 28.sp,
-            fontWeight = if (isOperator) FontWeight.Medium else FontWeight.Normal
-        )
+        if (text == "⌫") {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Backspace,
+                contentDescription = "Backspace",
+                tint = textColor,
+                modifier = Modifier.size(28.dp)
+            )
+        } else {
+            Text(
+                text = text,
+                color = textColor,
+                fontSize = 32.sp,
+                fontWeight = if (isOperator || isActive) FontWeight.Bold else FontWeight.SemiBold
+            )
+        }
     }
 }
 

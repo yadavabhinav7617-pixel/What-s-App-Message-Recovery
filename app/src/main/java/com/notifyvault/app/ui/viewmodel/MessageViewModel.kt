@@ -1,6 +1,7 @@
 package com.notifyvault.app.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.notifyvault.app.data.CloudSyncSettings
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -32,7 +34,8 @@ data class HomeUiState(
     val registeredDeviceName: String = "This device",
     val backendUrl: String = "",
     val accountEmail: String = "",
-    val isAdminLoggedIn: Boolean = false,
+    val isUserLoggedIn: Boolean = false,
+    val isAdmin: Boolean = false,
     val developerText: String = "Developed by Abhinav",
     val developerUrl: String = "https://notifyvault-theta.vercel.app"
 )
@@ -45,6 +48,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    
+    private val _registeredUsersList = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    val registeredUsersList: StateFlow<List<Pair<String, String>>> = _registeredUsersList.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -83,6 +89,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
 
     fun refreshCloudStatus() {
         val context = getApplication<Application>().applicationContext
+        val currentEmail = CloudSyncSettings.getAccountEmail(context) ?: ""
         viewModelScope.launch {
             try {
                 val pending = try { repository.countPendingQueue() } catch (_: Exception) { 0 }
@@ -96,7 +103,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                         lastSyncTimestamp = CloudSyncSettings.getLastSyncTime(context),
                         registeredDeviceName = CloudSyncSettings.getDeviceName(context),
                         backendUrl = CloudSyncSettings.getBackendUrl(context),
-                        accountEmail = CloudSyncSettings.getAccountEmail(context) ?: "",
+                        accountEmail = currentEmail,
+                        isUserLoggedIn = CloudSyncSettings.getAuthToken(context) != null,
+                        isAdmin = currentEmail.equals("admin@notifyvault.com", ignoreCase = true),
                         developerText = CloudSyncSettings.getDeveloperText(context),
                         developerUrl = CloudSyncSettings.getDeveloperUrl(context)
                     )
@@ -106,7 +115,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    suspend fun loginAdminAsync(email: String, pass: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun loginUserAsync(email: String, pass: String): Boolean = withContext(Dispatchers.IO) {
         val cleanEmail = email.trim()
         val cleanPass = pass.trim()
         if (cleanEmail.isBlank() || cleanPass.isBlank()) return@withContext false
@@ -114,6 +123,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         val context = getApplication<Application>().applicationContext
         val baseUrl = CloudSyncSettings.getBackendUrl(context).trimEnd('/')
 
+        // 1. Try Backend Admin Login (Vercel)
         try {
             val url = URL("$baseUrl/api/admin/login")
             val conn = url.openConnection() as HttpURLConnection
@@ -137,28 +147,296 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             if (code in 200..299) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
-                val token = json.optString("token", "")
-                if (token.isNotBlank()) {
-                    CloudSyncSettings.setAuthToken(context, token)
-                }
-                _uiState.update { it.copy(isAdminLoggedIn = true) }
+                val token = json.optString("token", "server_token_${System.currentTimeMillis()}")
+                
+                CloudSyncSettings.setAuthToken(context, token)
+                CloudSyncSettings.setAccountEmail(context, cleanEmail)
+                _uiState.update { it.copy(isUserLoggedIn = true, isAdmin = true, accountEmail = cleanEmail) }
                 return@withContext true
             }
         } catch (_: Exception) {
+            // Network error or backend not reachable, fallback to local checks below
         }
-
-        val isLocalAdmin = (cleanEmail.equals("admin@notifyvault.local", ignoreCase = true) && cleanPass == "ChangeMe123!") ||
-            (cleanEmail.contains("admin") && (cleanPass == "ChangeMe123!" || cleanPass == "admin123"))
-        if (isLocalAdmin) {
-            _uiState.update { it.copy(isAdminLoggedIn = true) }
+        
+        // 2. Admin Master Login Fallback (Hardcoded)
+        if (cleanEmail.equals("admin@notifyvault.com", ignoreCase = true) && cleanPass == "admin123") {
+            val dummyToken = "auth_admin_${System.currentTimeMillis()}"
+            CloudSyncSettings.setAuthToken(context, dummyToken)
+            CloudSyncSettings.setAccountEmail(context, cleanEmail)
+            _uiState.update { it.copy(isUserLoggedIn = true, isAdmin = true, accountEmail = cleanEmail) }
             return@withContext true
         }
+
+        // Allow any login with "admin" in email and "admin123" as password as a fallback admin
+        if (cleanEmail.contains("admin", ignoreCase = true) && cleanPass == "admin123") {
+            val dummyToken = "auth_admin_${System.currentTimeMillis()}"
+            CloudSyncSettings.setAuthToken(context, dummyToken)
+            CloudSyncSettings.setAccountEmail(context, cleanEmail)
+            _uiState.update { it.copy(isUserLoggedIn = true, isAdmin = true, accountEmail = cleanEmail) }
+            return@withContext true
+        }
+
+        // Standard User Login - Try Backend User Login (Vercel/MongoDB)
+        try {
+            val url = URL("$baseUrl/api/users/login")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            conn.setRequestProperty("Accept", "application/json")
+
+            val payload = JSONObject().apply {
+                put("email", cleanEmail)
+                put("password", cleanPass)
+            }
+
+            conn.outputStream.use { out ->
+                out.write(payload.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val code = conn.responseCode
+            if (code in 200..299) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+                val token = json.optString("token", "server_user_token_${System.currentTimeMillis()}")
+                
+                CloudSyncSettings.setAuthToken(context, token)
+                CloudSyncSettings.setAccountEmail(context, cleanEmail)
+                _uiState.update { it.copy(isUserLoggedIn = true, isAdmin = false, accountEmail = cleanEmail) }
+                return@withContext true
+            }
+        } catch (_: Exception) {
+            // Network error or backend not reachable
+        }
+
+        // Standard User Login - Fallback to local simulated DB if backend fails
+        val usersJsonStr = CloudSyncSettings.getRegisteredUsers(context)
+        try {
+            val usersArray = JSONArray(usersJsonStr)
+            for (i in 0 until usersArray.length()) {
+                val userObj = usersArray.getJSONObject(i)
+                if (userObj.optString("email") == cleanEmail && userObj.optString("password") == cleanPass) {
+                    val dummyToken = "auth_user_${System.currentTimeMillis()}"
+                    CloudSyncSettings.setAuthToken(context, dummyToken)
+                    CloudSyncSettings.setAccountEmail(context, cleanEmail)
+                    _uiState.update { it.copy(isUserLoggedIn = true, isAdmin = false, accountEmail = cleanEmail) }
+                    return@withContext true
+                }
+            }
+        } catch (_: Exception) {}
 
         return@withContext false
     }
 
-    fun logoutAdmin() {
-        _uiState.update { it.copy(isAdminLoggedIn = false) }
+    fun logoutUser() {
+        val context = getApplication<Application>().applicationContext
+        context.getSharedPreferences("notifyvault_cloud_sync", Context.MODE_PRIVATE).edit().remove("auth_token").remove("account_email").apply()
+        _uiState.update { it.copy(isUserLoggedIn = false, isAdmin = false, accountEmail = "") }
+    }
+    
+    // --- Admin User Management Methods ---
+
+    fun loadRegisteredUsers() {
+        val context = getApplication<Application>().applicationContext
+        val baseUrl = CloudSyncSettings.getBackendUrl(context).trimEnd('/')
+        
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val url = URL("$baseUrl/api/users")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.setRequestProperty("Accept", "application/json")
+                
+                if (conn.responseCode in 200..299) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val usersArray = JSONArray(body)
+                    val list = mutableListOf<Pair<String, String>>()
+                    for (i in 0 until usersArray.length()) {
+                        val userObj = usersArray.getJSONObject(i)
+                        // Assume backend returns email and password fields, or default password if hashed
+                        list.add(Pair(userObj.optString("email"), userObj.optString("password", "********")))
+                    }
+                    _registeredUsersList.value = list
+                    return@launch
+                }
+            } catch (_: Exception) {}
+            
+            // Fallback to local if backend fails
+            val usersJsonStr = CloudSyncSettings.getRegisteredUsers(context)
+            val list = mutableListOf<Pair<String, String>>()
+            try {
+                val usersArray = JSONArray(usersJsonStr)
+                for (i in 0 until usersArray.length()) {
+                    val userObj = usersArray.getJSONObject(i)
+                    list.add(Pair(userObj.optString("email"), userObj.optString("password")))
+                }
+            } catch (_: Exception) {}
+            _registeredUsersList.value = list
+        }
+    }
+
+    suspend fun createNewUser(email: String, pass: String): Boolean = withContext(Dispatchers.IO) {
+        val cleanEmail = email.trim()
+        val cleanPass = pass.trim()
+        if (cleanEmail.isBlank() || cleanPass.isBlank()) return@withContext false
+        
+        val context = getApplication<Application>().applicationContext
+        val baseUrl = CloudSyncSettings.getBackendUrl(context).trimEnd('/')
+        
+        // 1. Try sending to Vercel/MongoDB Backend
+        try {
+            val url = URL("$baseUrl/api/users/register")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+
+            val payload = JSONObject().apply {
+                put("email", cleanEmail)
+                put("password", cleanPass)
+            }
+
+            conn.outputStream.use { out ->
+                out.write(payload.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            if (conn.responseCode in 200..299) {
+                loadRegisteredUsers()
+                return@withContext true
+            }
+        } catch (_: Exception) {}
+        
+        // 2. Fallback to Local Storage
+        val usersJsonStr = CloudSyncSettings.getRegisteredUsers(context)
+        try {
+            val usersArray = if (usersJsonStr.isNotBlank()) JSONArray(usersJsonStr) else JSONArray()
+            // Check if exists locally
+            for (i in 0 until usersArray.length()) {
+                if (usersArray.getJSONObject(i).optString("email") == cleanEmail) {
+                    return@withContext false // Already exists
+                }
+            }
+            val newUser = JSONObject().apply {
+                put("email", cleanEmail)
+                put("password", cleanPass)
+            }
+            usersArray.put(newUser)
+            CloudSyncSettings.setRegisteredUsers(context, usersArray.toString())
+            loadRegisteredUsers()
+            return@withContext true
+        } catch (_: Exception) {
+            return@withContext false
+        }
+    }
+
+    suspend fun deleteUser(email: String): Boolean = withContext(Dispatchers.IO) {
+        val context = getApplication<Application>().applicationContext
+        val baseUrl = CloudSyncSettings.getBackendUrl(context).trimEnd('/')
+        
+        // 1. Try Backend
+        try {
+            val url = URL("$baseUrl/api/users")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "DELETE"
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            
+            val payload = JSONObject().apply {
+                put("email", email)
+            }
+            conn.outputStream.use { out ->
+                out.write(payload.toString().toByteArray(Charsets.UTF_8))
+            }
+            
+            if (conn.responseCode in 200..299) {
+                loadRegisteredUsers()
+                return@withContext true
+            }
+        } catch (_: Exception) {}
+        
+        // 2. Fallback Local
+        val usersJsonStr = CloudSyncSettings.getRegisteredUsers(context)
+        try {
+            val usersArray = if (usersJsonStr.isNotBlank()) JSONArray(usersJsonStr) else JSONArray()
+            val newArray = JSONArray()
+            var found = false
+            for (i in 0 until usersArray.length()) {
+                val obj = usersArray.getJSONObject(i)
+                if (obj.optString("email") == email) {
+                    found = true
+                } else {
+                    newArray.put(obj)
+                }
+            }
+            if (found) {
+                CloudSyncSettings.setRegisteredUsers(context, newArray.toString())
+                loadRegisteredUsers()
+                return@withContext true
+            }
+        } catch (_: Exception) {}
+        return@withContext false
+    }
+
+    suspend fun changeUserPassword(email: String, oldPass: String, newPass: String): Boolean = withContext(Dispatchers.IO) {
+        val cleanNewPass = newPass.trim()
+        if (cleanNewPass.isBlank()) return@withContext false
+        
+        val context = getApplication<Application>().applicationContext
+        val baseUrl = CloudSyncSettings.getBackendUrl(context).trimEnd('/')
+        
+        // 1. Try Backend
+        try {
+            val url = URL("$baseUrl/api/users/password")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "PUT"
+            conn.connectTimeout = 8000
+            conn.readTimeout = 8000
+            conn.doOutput = true
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            
+            val payload = JSONObject().apply {
+                put("email", email)
+                put("oldPassword", oldPass)
+                put("newPassword", cleanNewPass)
+            }
+            conn.outputStream.use { out ->
+                out.write(payload.toString().toByteArray(Charsets.UTF_8))
+            }
+            
+            if (conn.responseCode in 200..299) {
+                loadRegisteredUsers()
+                return@withContext true
+            }
+        } catch (_: Exception) {}
+        
+        // 2. Fallback Local
+        val usersJsonStr = CloudSyncSettings.getRegisteredUsers(context)
+        try {
+            val usersArray = if (usersJsonStr.isNotBlank()) JSONArray(usersJsonStr) else JSONArray()
+            var updated = false
+            for (i in 0 until usersArray.length()) {
+                val obj = usersArray.getJSONObject(i)
+                if (obj.optString("email") == email && obj.optString("password") == oldPass) {
+                    obj.put("password", cleanNewPass)
+                    updated = true
+                    break
+                }
+            }
+            if (updated) {
+                CloudSyncSettings.setRegisteredUsers(context, usersArray.toString())
+                loadRegisteredUsers()
+                return@withContext true
+            }
+        } catch (_: Exception) {}
+        return@withContext false
     }
 
     fun setCloudSyncEnabled(enabled: Boolean) {
@@ -189,6 +467,12 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun deleteMessage(message: MessageEntity) {
         viewModelScope.launch {
             repository.deleteMessage(message)
+        }
+    }
+
+    fun deleteMessages(messages: List<MessageEntity>) {
+        viewModelScope.launch {
+            messages.forEach { repository.deleteMessage(it) }
         }
     }
 

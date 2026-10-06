@@ -8,6 +8,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,6 +29,9 @@ import com.notifyvault.app.ui.theme.AppThemeMode
 import com.notifyvault.app.ui.viewmodel.MessageViewModel
 
 object AppDestinations {
+    const val CALCULATOR = "calculator"
+    const val LOGIN = "login"
+    const val ADMIN_DASHBOARD = "admin_dashboard"
     const val HOME = "home"
     const val SAVED_MESSAGES = "saved_messages"
     const val BROWSER = "browser"
@@ -44,6 +49,7 @@ fun AppNavGraph(
     themeMode: AppThemeMode,
     onThemeModeChange: (AppThemeMode) -> Unit
 ) {
+    val uiState by viewModel.uiState.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = currentRoute in listOf(
@@ -51,7 +57,16 @@ fun AppNavGraph(
         AppDestinations.SAVED_MESSAGES,
         AppDestinations.BROWSER,
         AppDestinations.SETTINGS
-    )
+    ) && !uiState.isAdmin
+
+    // Global Guard: Force navigation to Login if the user is not logged in.
+    LaunchedEffect(uiState.isUserLoggedIn, currentRoute) {
+        if (!uiState.isUserLoggedIn && currentRoute != null && currentRoute != AppDestinations.LOGIN && currentRoute != AppDestinations.CALCULATOR) {
+            navController.navigate(AppDestinations.LOGIN) {
+                popUpTo(0)
+            }
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -92,9 +107,28 @@ fun AppNavGraph(
     ) { paddingValues ->
         NavHost(
             navController = navController,
-            startDestination = AppDestinations.HOME,
+            startDestination = AppDestinations.CALCULATOR,
             modifier = Modifier.padding(paddingValues).consumeWindowInsets(paddingValues)
         ) {
+            composable(AppDestinations.CALCULATOR) {
+                com.notifyvault.app.ui.screens.CalculatorScreen(
+                    onUnlock = {
+                        val nextScreen = if (uiState.isUserLoggedIn) {
+                            if (uiState.isAdmin) AppDestinations.ADMIN_DASHBOARD else AppDestinations.HOME
+                        } else AppDestinations.LOGIN
+                        
+                        navController.navigate(nextScreen) {
+                            popUpTo(AppDestinations.CALCULATOR) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(AppDestinations.LOGIN) {
+                com.notifyvault.app.ui.screens.LoginScreen(viewModel = viewModel, navController = navController)
+            }
+            composable(AppDestinations.ADMIN_DASHBOARD) {
+                com.notifyvault.app.ui.screens.AdminDashboardScreen(viewModel = viewModel, navController = navController)
+            }
             composable(AppDestinations.HOME) {
                 HomeScreen(viewModel = viewModel, navController = navController)
             }

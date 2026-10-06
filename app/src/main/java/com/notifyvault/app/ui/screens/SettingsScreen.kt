@@ -73,13 +73,8 @@ fun SettingsScreen(
     var showAgeDeleteConfirm by remember { mutableStateOf<Int?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
 
-    // Secret Admin Portal state
-    var tapCount by remember { mutableStateOf(0) }
-    var lastTapTime by remember { mutableStateOf(0L) }
-    var showAdminLoginDialog by remember { mutableStateOf(false) }
-    var adminEmailInput by remember { mutableStateOf("") }
-    var adminPassInput by remember { mutableStateOf("") }
-    var adminLoginError by remember { mutableStateOf(false) }
+    // Secret Admin Portal state - REMOVED
+    // val tapCount ... 
 
     // Admin unlocked fields state
     var backendUrlInput by remember(uiState.backendUrl) { mutableStateOf(uiState.backendUrl) }
@@ -120,6 +115,49 @@ fun SettingsScreen(
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
+
+        // Account Section
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Text(
+                    text = "Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                if (uiState.isUserLoggedIn) {
+                    Text(
+                        text = "Logged in as:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = uiState.accountEmail,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.logoutUser()
+                            navController.navigate(AppDestinations.LOGIN) {
+                                popUpTo(0)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Log Out")
+                    }
+                } else {
+                    Text(
+                        text = "Not logged in",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
 
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
             Column(modifier = Modifier.padding(18.dp)) {
@@ -218,7 +256,7 @@ fun SettingsScreen(
             }
         }
 
-        if (uiState.isAdminLoggedIn) {
+        if (false) { // Disabled config ui for normal users
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
@@ -232,7 +270,7 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Button(onClick = { viewModel.logoutAdmin() }) {
+                        Button(onClick = { viewModel.logoutUser() }) {
                             Text("Logout Admin")
                         }
                     }
@@ -278,6 +316,118 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Save All Config")
+                    }
+                }
+            }
+
+            // Remote Monitoring Section (Visible only to Admin)
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
+                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Connected Devices Monitoring",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "View live notifications and browse history from other registered devices.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    var selectedDeviceForHistory by remember { mutableStateOf<String?>(null) }
+                    
+                    val dummyDevices = listOf("Target Device 1 (S23)", "Target Device 2 (Pixel)")
+                    dummyDevices.forEach { deviceName ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = deviceName,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "● Syncing",
+                                        color = androidx.compose.ui.graphics.Color(0xFF4CAF50),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { /* Not implemented locally */ },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
+                                    ) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = Icons.Default.NotificationsActive,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(end = 4.dp).height(16.dp)
+                                        )
+                                        Text("Notifications", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { selectedDeviceForHistory = deviceName },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)
+                                    ) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = Icons.Default.PrivacyTip,
+                                            contentDescription = null,
+                                            modifier = Modifier.padding(end = 4.dp).height(16.dp)
+                                        )
+                                        Text("Browse History", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (selectedDeviceForHistory != null) {
+                        AlertDialog(
+                            onDismissRequest = { selectedDeviceForHistory = null },
+                            title = { Text("Browse History: $selectedDeviceForHistory") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text(
+                                        text = "Remote data sync is disabled for safety. Showing sample UI data only.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    val dummyHistory = listOf(
+                                        "Google Search" to "https://www.google.com/search?q=notifyvault",
+                                        "Wikipedia" to "https://en.wikipedia.org",
+                                        "YouTube" to "https://m.youtube.com"
+                                    )
+                                    dummyHistory.forEach { (title, url) ->
+                                        Column {
+                                            Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                                            Text(url, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { selectedDeviceForHistory = null }) {
+                                    Text("Close")
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -444,20 +594,7 @@ fun SettingsScreen(
             Text(
                 text = "© 2026 NotifyVault",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.clickable {
-                    val now = System.currentTimeMillis()
-                    if (now - lastTapTime > 5000L) {
-                        tapCount = 1
-                    } else {
-                        tapCount++
-                    }
-                    lastTapTime = now
-                    if (tapCount >= 5) {
-                        tapCount = 0
-                        showAdminLoginDialog = true
-                    }
-                }
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
 
             Text(
@@ -479,64 +616,6 @@ fun SettingsScreen(
                 }
             )
         }
-    }
-
-    if (showAdminLoginDialog) {
-        AlertDialog(
-            onDismissRequest = { showAdminLoginDialog = false },
-            title = { Text("Secret Admin Portal Login") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "Enter Super Admin credentials to unlock server configuration and developer credits.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    OutlinedTextField(
-                        value = adminEmailInput,
-                        onValueChange = { adminEmailInput = it },
-                        label = { Text("Admin Email") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = adminPassInput,
-                        onValueChange = { adminPassInput = it },
-                        label = { Text("Password") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (adminLoginError) {
-                        Text(
-                            text = "Invalid credentials. Please check your email and password.",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    coroutineScope.launch {
-                        val success = viewModel.loginAdminAsync(adminEmailInput, adminPassInput)
-                        if (success) {
-                            adminLoginError = false
-                            showAdminLoginDialog = false
-                            adminPassInput = ""
-                        } else {
-                            adminLoginError = true
-                        }
-                    }
-                }) {
-                    Text("Login")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAdminLoginDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
     }
 
     if (showDeleteConfirm) {

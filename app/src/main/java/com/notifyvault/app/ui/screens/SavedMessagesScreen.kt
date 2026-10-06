@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
@@ -38,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -52,6 +56,7 @@ fun SavedMessagesScreen(viewModel: MessageViewModel, navController: NavControlle
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("All") }
+    var selectedIds by remember { mutableStateOf(setOf<Long>()) }
 
     val filteredMessages = messages.filter { message ->
         val matchesSearch = searchQuery.isBlank() ||
@@ -111,6 +116,58 @@ fun SavedMessagesScreen(viewModel: MessageViewModel, navController: NavControlle
                 Text("Filter")
             }
         }
+        
+        // Multi-selection Actions
+        if (selectedIds.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${selectedIds.size} selected",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { selectedIds = emptySet() },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            val messagesToDelete = messages.filter { it.id in selectedIds }
+                            viewModel.deleteMessages(messagesToDelete)
+                            selectedIds = emptySet()
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null)
+                        Spacer(modifier = Modifier.padding(start = 4.dp))
+                        Text("Delete")
+                    }
+                }
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Button(
+                    onClick = { 
+                        selectedIds = filteredMessages.map { it.id }.toSet() 
+                    },
+                    enabled = filteredMessages.isNotEmpty()
+                ) {
+                    Text("Select All")
+                }
+            }
+        }
 
         AnimatedVisibility(visible = showSearch) {
             OutlinedTextField(
@@ -161,9 +218,25 @@ fun SavedMessagesScreen(viewModel: MessageViewModel, navController: NavControlle
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(filteredMessages) { message ->
+                    val isSelected = selectedIds.contains(message.id)
                     MessageRow(
                         message = message,
-                        onClick = { navController.navigate(AppDestinations.messageDetailRoute(message.id)) },
+                        isSelected = isSelected,
+                        onToggleSelection = { 
+                            selectedIds = if (isSelected) {
+                                selectedIds - message.id
+                            } else {
+                                selectedIds + message.id
+                            }
+                        },
+                        onClick = {
+                            if (selectedIds.isNotEmpty()) {
+                                // If in selection mode, click toggles selection
+                                selectedIds = if (isSelected) selectedIds - message.id else selectedIds + message.id
+                            } else {
+                                navController.navigate(AppDestinations.messageDetailRoute(message.id))
+                            }
+                        },
                         onDelete = { viewModel.deleteMessage(message) }
                     )
                 }
@@ -184,18 +257,27 @@ fun SavedMessagesScreen(viewModel: MessageViewModel, navController: NavControlle
 @Composable
 private fun MessageRow(
     message: MessageEntity,
+    isSelected: Boolean,
+    onToggleSelection: () -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onToggleSelection() }
+                )
+            },
+        shape = RoundedCornerShape(22.dp),
+        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else Color.Transparent)
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -205,11 +287,19 @@ private fun MessageRow(
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
                     .padding(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.Chat,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Selected",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Chat,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(

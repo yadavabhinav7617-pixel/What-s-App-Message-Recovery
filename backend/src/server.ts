@@ -163,6 +163,7 @@ MessageSchema.index({ deviceId: 1, capturedAt: -1 });
 MessageSchema.index({ sender: 1 });
 
 const BrowserHistorySchema = new mongoose.Schema({
+  accountId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   deviceId: { type: String, required: true },
   deviceName: { type: String, default: 'Device' },
   title: { type: String, default: 'Web Page' },
@@ -171,7 +172,7 @@ const BrowserHistorySchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, { collection: 'browserHistory' });
 
-BrowserHistorySchema.index({ deviceId: 1, timestamp: -1 });
+BrowserHistorySchema.index({ accountId: 1, deviceId: 1, timestamp: -1 });
 
 const AuditLogSchema = new mongoose.Schema({
   actor: { type: String, default: 'system' },
@@ -383,15 +384,19 @@ app.post('/api/messages/sync', requireAuth, async (req, res) => {
   res.status(200).json({ accepted: true });
 });
 
-// Browser History Sync Endpoint
-app.post('/api/browser/history/sync', async (req, res) => {
+// Browser History Sync Endpoint (Authenticated)
+app.post('/api/browser/history/sync', requireAuth, async (req, res) => {
   try {
+    const currentUser = req.user;
+    if (!currentUser || !currentUser.sub) return res.status(401).json({ message: 'Authentication required' });
+
     const { deviceId, deviceName, history } = req.body || {};
     if (!deviceId || !Array.isArray(history) || !history.length) {
       return res.status(400).json({ message: 'Invalid history payload' });
     }
 
     const docs = history.map((item: any) => ({
+      accountId: currentUser.sub,
       deviceId,
       deviceName: deviceName || item.deviceName || deviceId,
       title: item.title || 'Web Page',
@@ -415,6 +420,29 @@ app.get('/api/messages', requireAuth, async (req, res) => {
   if (!currentUser || !currentUser.sub) return res.status(401).json({ message: 'Authentication required' });
   const items = await Message.find({ accountId: currentUser.sub }).sort({ capturedAt: -1 }).limit(50);
   res.json({ messages: items });
+});
+
+// User Browser History (per-account)
+app.get('/api/browser-history', requireAuth, async (req, res) => {
+  const currentUser = req.user;
+  if (!currentUser || !currentUser.sub) return res.status(401).json({ message: 'Authentication required' });
+  const limit = Math.min(Number(req.query.limit || 100), 300);
+  const filterDeviceId = req.query.deviceId ? String(req.query.deviceId).trim() : null;
+  const query: any = { accountId: currentUser.sub };
+  if (filterDeviceId) query.deviceId = filterDeviceId;
+
+  const history = await BrowserHistory.find(query).sort({ timestamp: -1 }).limit(limit).lean();
+
+  const deviceIds = Array.from(new Set(history.map((h) => h.deviceId).filter(Boolean)));
+  const devices = await Device.find({ deviceId: { $in: deviceIds } }).lean();
+  const deviceNameMap = new Map(devices.map((d) => [d.deviceId, d.deviceName || d.deviceId]));
+
+  const enrichedHistory = history.map((item) => ({
+    ...item,
+    deviceName: deviceNameMap.get(item.deviceId) || item.deviceName || item.deviceId || 'Device'
+  }));
+
+  res.json({ history: enrichedHistory });
 });
 
 app.get('/api/devices', requireAuth, async (req, res) => {

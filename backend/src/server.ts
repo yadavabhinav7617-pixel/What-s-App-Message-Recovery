@@ -268,11 +268,20 @@ app.post('/api/auth/register', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ message: 'Invalid registration data' });
 
   const { email, password, name } = parsed.data;
-  const exists = await User.findOne({ email });
-  if (exists) return res.status(409).json({ message: 'User already exists' });
+  const normalizedEmail = String(email).trim().toLowerCase();
+
+  let existing = await User.findOne({ email: normalizedEmail });
+  if (existing) {
+    const valid = await bcrypt.compare(password, existing.passwordHash);
+    if (valid) {
+      const token = signJwt({ sub: existing._id.toString(), role: 'USER', email: existing.email });
+      return res.status(200).json({ userId: existing._id, email: existing.email, token, alreadyExists: true });
+    }
+    return res.status(409).json({ message: 'User already exists' });
+  }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await User.create({ email, passwordHash, name });
+  const user = await User.create({ email: normalizedEmail, passwordHash, name });
   res.status(201).json({ userId: user._id, email: user.email });
 });
 
@@ -281,7 +290,8 @@ app.post('/api/auth/login', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ message: 'Invalid login payload' });
 
   const { email, password } = parsed.data;
-  const user = await User.findOne({ email });
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
   const valid = await bcrypt.compare(password, user.passwordHash);
@@ -291,12 +301,88 @@ app.post('/api/auth/login', async (req, res) => {
   res.json({ token, userId: user._id });
 });
 
+app.post('/api/users/register', async (req, res) => {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid registration data' });
+
+  const { email, password, name } = parsed.data;
+  const normalizedEmail = String(email).trim().toLowerCase();
+
+  let existing = await User.findOne({ email: normalizedEmail });
+  if (existing) {
+    const valid = await bcrypt.compare(password, existing.passwordHash);
+    if (valid) {
+      const token = signJwt({ sub: existing._id.toString(), role: 'USER', email: existing.email });
+      return res.status(200).json({ userId: existing._id, email: existing.email, token, alreadyExists: true });
+    }
+    return res.status(409).json({ message: 'User already exists' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await User.create({ email: normalizedEmail, passwordHash, name });
+  res.status(201).json({ userId: user._id, email: user.email, token: signJwt({ sub: user._id.toString(), role: 'USER', email: user.email }) });
+});
+
+app.post('/api/users/login', async (req, res) => {
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid login payload' });
+
+  const { email, password } = parsed.data;
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail });
+  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
+
+  const token = signJwt({ sub: user._id.toString(), role: 'USER', email: user.email });
+  res.json({ token, userId: user._id });
+});
+
+app.get('/api/users', requireAuth, async (req, res) => {
+  const currentUser = req.user;
+  if (!currentUser || !currentUser.sub) return res.status(401).json({ message: 'Authentication required' });
+  if (currentUser.role !== 'SUPER_ADMIN') {
+    const user = await User.findById(currentUser.sub).select('_id email name createdAt');
+    return res.json({ users: user ? [user] : [] });
+  }
+  const users = await User.find({}).select('_id email name createdAt').sort({ createdAt: -1 });
+  res.json({ users });
+});
+
+app.put('/api/users/password', requireAuth, async (req, res) => {
+  const { email, oldPassword, newPassword } = req.body || {};
+  if (!email || !oldPassword || !newPassword) return res.status(400).json({ message: 'Missing required fields' });
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ message: 'User not found' });
+
+  const valid = await bcrypt.compare(oldPassword, user.passwordHash);
+  if (!valid) return res.status(401).json({ message: 'Invalid current password' });
+
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  await user.save();
+  res.json({ ok: true, email: user.email });
+});
+
+app.delete('/api/users', requireAuth, async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ message: 'email is required' });
+  const deleted = await User.findOneAndDelete({ email });
+  if (!deleted) return res.status(404).json({ message: 'User not found' });
+  await Device.deleteMany({ userId: deleted._id });
+  await Message.deleteMany({ accountId: deleted._id });
+  await BrowserHistory.deleteMany({ accountId: deleted._id });
+  res.json({ ok: true, email });
+});
+
 app.post('/api/devices/register', requireAuth, async (req, res) => {
   const parsed = deviceRegisterSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid device registration payload' });
 
   const currentUser = req.user;
-  const user = await User.findOne({ email: parsed.data.accountEmail });
+  const normalizedAccountEmail = String(parsed.data.accountEmail).trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedAccountEmail });
   if (!currentUser || !user || user._id.toString() !== (currentUser.sub || '')) {
     return res.status(403).json({ message: 'Device registration forbidden for this account' });
   }
